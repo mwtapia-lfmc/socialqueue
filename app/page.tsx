@@ -8,18 +8,23 @@ import ScheduledPosts from './components/ScheduledPosts'
 import Header from './components/Header'
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<any>({ email: 'demo@socialqueue.app' })
   const [loading, setLoading] = useState(true)
   const [posts, setPosts] = useState<any[]>([])
   const [view, setView] = useState<'compose' | 'calendar' | 'queue'>('compose')
 
   useEffect(() => {
-    checkUser()
+    loadPosts()
   }, [])
 
-  const checkUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    setUser(session?.user || null)
+  const loadPosts = async () => {
+    try {
+      const { data, error } = await supabase.from('posts').select('*').order('schedule_date', { ascending: true })
+      if (error) throw error
+      setPosts(data || [])
+    } catch (error) {
+      console.error('Error loading posts:', error)
+    }
     setLoading(false)
   }
 
@@ -68,7 +73,7 @@ export default function Home() {
               </button>
             </div>
 
-            {view === 'compose' && <ComposePost onPostCreated={() => setPosts([...posts])} />}
+            {view === 'compose' && <ComposePost onPostCreated={loadPosts} />}
             {view === 'calendar' && <Calendar posts={posts} />}
             {view === 'queue' && <ScheduledPosts posts={posts} />}
           </div>

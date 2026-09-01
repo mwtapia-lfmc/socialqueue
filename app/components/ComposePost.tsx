@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 interface ComposePostProps {
   onPostCreated: () => void
@@ -21,29 +22,28 @@ export default function ComposePost({ onPostCreated }: ComposePostProps) {
     e.preventDefault()
     setIsSubmitting(true)
 
-    const formData = new FormData()
-    formData.append('content', content)
-    formData.append('platforms', JSON.stringify(platforms))
-    formData.append('scheduleDate', scheduleDate)
-    formData.append('scheduleTime', scheduleTime)
-    images.forEach((img) => formData.append('images', img))
-
     try {
-      const res = await fetch('/api/posts/create', {
-        method: 'POST',
-        body: formData,
-      })
+      const { error } = await supabase.from('posts').insert([
+        {
+          content,
+          platforms,
+          schedule_date: scheduleDate,
+          schedule_time: scheduleTime,
+          image_count: images.length,
+        },
+      ])
 
-      if (res.ok) {
-        setContent('')
-        setScheduleDate('')
-        setScheduleTime('')
-        setImages([])
-        onPostCreated()
-        alert('Post scheduled successfully!')
-      }
+      if (error) throw error
+
+      setContent('')
+      setScheduleDate('')
+      setScheduleTime('')
+      setImages([])
+      onPostCreated()
+      alert('Post scheduled successfully!')
     } catch (error) {
       console.error('Error creating post:', error)
+      alert('Failed to create post')
     }
 
     setIsSubmitting(false)
