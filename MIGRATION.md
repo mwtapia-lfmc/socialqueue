@@ -1,72 +1,23 @@
-# Database Migration Guide
+# Database Migration (applied 2026-09-15)
 
-Run these SQL commands in your Supabase dashboard to update the schema:
-
-## 1. Update posts table
+Run in Supabase SQL Editor. Clears ownerless demo rows, adds `user_id`, and replaces the public RLS policies with per-user ones.
 
 ```sql
--- Add user_id column
-ALTER TABLE posts ADD COLUMN user_id UUID NOT NULL DEFAULT gen_random_uuid();
+DELETE FROM posts;
+DELETE FROM blog_posts;
 
--- Add foreign key constraint
-ALTER TABLE posts ADD CONSTRAINT posts_user_id_fk 
-  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE posts ADD COLUMN user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE blog_posts ADD COLUMN user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE;
 
--- Drop old RLS policy
 DROP POLICY IF EXISTS "Allow all access to posts" ON posts;
-
--- Add new RLS policies for user-based access
-CREATE POLICY "Users can view their own posts" 
-  ON posts FOR SELECT 
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can create posts" 
-  ON posts FOR INSERT 
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own posts" 
-  ON posts FOR UPDATE 
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own posts" 
-  ON posts FOR DELETE 
-  USING (auth.uid() = user_id);
-```
-
-## 2. Update blog_posts table
-
-```sql
--- Add user_id column
-ALTER TABLE blog_posts ADD COLUMN user_id UUID NOT NULL DEFAULT gen_random_uuid();
-
--- Add foreign key constraint
-ALTER TABLE blog_posts ADD CONSTRAINT blog_posts_user_id_fk 
-  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
--- Drop old RLS policy
 DROP POLICY IF EXISTS "Allow all access to blog_posts" ON blog_posts;
 
--- Add new RLS policies
-CREATE POLICY "Users can view their own blog posts" 
-  ON blog_posts FOR SELECT 
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can create blog posts" 
-  ON blog_posts FOR INSERT 
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own blog posts" 
-  ON blog_posts FOR UPDATE 
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own blog posts" 
-  ON blog_posts FOR DELETE 
-  USING (auth.uid() = user_id);
+CREATE POLICY "own posts" ON posts FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "own blog_posts" ON blog_posts FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 ```
 
-## 3. Enable Google OAuth in Supabase
+## Auth setup
 
-1. Go to Authentication > Providers
-2. Enable Google
-3. Add your Google OAuth credentials from Google Cloud Console
-4. Set callback URL: `https://yourdomain.vercel.app/auth/callback`
+- Supabase → Authentication → Providers → Google: enabled with a Google Cloud OAuth client (redirect URI `https://fbkroevujomkefgnprym.supabase.co/auth/v1/callback`)
+- Supabase → Authentication → URL Configuration: Site URL `https://socialqueue-kappa.vercel.app`, redirect `https://socialqueue-kappa.vercel.app/**`
+- Vercel env: `ANTHROPIC_API_KEY` set. `OPENAI_API_KEY`, `BLUESKY_*`, `EVERNOTE_*` optional — routes return mock data without them.
