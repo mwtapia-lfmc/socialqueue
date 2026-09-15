@@ -5,16 +5,21 @@ import { supabase } from './lib/supabase'
 import ComposePost from './components/ComposePost'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
+import BlogCompose from './components/BlogCompose'
+import BlogQueue from './components/BlogQueue'
 import Header from './components/Header'
 
 export default function Home() {
   const [user, setUser] = useState<any>({ email: 'demo@socialqueue.app' })
   const [loading, setLoading] = useState(true)
   const [posts, setPosts] = useState<any[]>([])
-  const [view, setView] = useState<'compose' | 'calendar' | 'queue'>('compose')
+  const [blogs, setBlogs] = useState<any[]>([])
+  const [view, setView] = useState<'compose' | 'calendar' | 'queue' | 'blog'>('compose')
+  const [blogView, setBlogView] = useState<'compose' | 'queue'>('compose')
 
   useEffect(() => {
     loadPosts()
+    loadBlogs()
   }, [])
 
   const loadPosts = async () => {
@@ -26,6 +31,16 @@ export default function Home() {
       console.error('Error loading posts:', error)
     }
     setLoading(false)
+  }
+
+  const loadBlogs = async () => {
+    try {
+      const { data, error } = await supabase.from('blog_posts').select('*').order('schedule_date', { ascending: true })
+      if (error) throw error
+      setBlogs(data || [])
+    } catch (error) {
+      console.error('Error loading blogs:', error)
+    }
   }
 
   if (loading) {
@@ -52,7 +67,7 @@ export default function Home() {
           </div>
         ) : (
           <div className="space-y-8">
-            <div className="flex gap-4 mb-6">
+            <div className="flex gap-4 mb-6 flex-wrap">
               <button
                 onClick={() => setView('compose')}
                 className={`px-4 py-2 rounded-lg font-medium ${view === 'compose' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border'}`}
@@ -71,11 +86,37 @@ export default function Home() {
               >
                 Queue
               </button>
+              <button
+                onClick={() => setView('blog')}
+                className={`px-4 py-2 rounded-lg font-medium ${view === 'blog' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 border'}`}
+              >
+                Blog
+              </button>
             </div>
 
             {view === 'compose' && <ComposePost onPostCreated={loadPosts} />}
             {view === 'calendar' && <Calendar posts={posts} />}
             {view === 'queue' && <ScheduledPosts posts={posts} />}
+            {view === 'blog' && (
+              <div className="space-y-6">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBlogView('compose')}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm ${blogView === 'compose' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 border'}`}
+                  >
+                    Write Blog
+                  </button>
+                  <button
+                    onClick={() => setBlogView('queue')}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm ${blogView === 'queue' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 border'}`}
+                  >
+                    Blog Queue
+                  </button>
+                </div>
+                {blogView === 'compose' && <BlogCompose onBlogCreated={loadBlogs} />}
+                {blogView === 'queue' && <BlogQueue blogs={blogs} />}
+              </div>
+            )}
           </div>
         )}
       </div>
