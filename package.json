@@ -10,10 +10,13 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
+    "@atproto/api": "^0.20.44",
     "@supabase/supabase-js": "^2.112.4",
     "axios": "^1.20.0",
     "date-fns": "^4.4.0",
+    "evernote": "^2.0.5",
     "next": "16.3.4",
+    "openai": "^7.15.0",
     "react": "19.2.8",
     "react-calendar": "^6.0.1",
     "react-dom": "19.2.8"
