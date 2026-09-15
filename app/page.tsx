@@ -5,7 +5,6 @@ import { supabase } from './lib/supabase'
 import UnifiedComposer from './components/UnifiedComposer'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
-import Header from './components/Header'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
