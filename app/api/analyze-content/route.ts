@@ -33,8 +33,8 @@ Provide your analysis in JSON format ONLY (no other text):
 Focus on what will get views, likes, and clicks.`
 
       const message = await client.messages.create({
-        model: 'claude-opus-5',
-        max_tokens: 1024,
+        model: 'claude-sonnet-5',
+        max_tokens: 700,
         messages: [{ role: 'user', content: prompt }],
       })
 

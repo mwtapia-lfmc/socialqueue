@@ -1,73 +1,61 @@
 'use client'
 
 import { useState } from 'react'
+import { PLATFORM_META, formatTime, type Platform } from '../lib/text'
+import type { Item } from './UnifiedComposer'
 
-interface CalendarProps {
-  posts: any[]
+interface Props {
+  items: Item[]
+  onSelect: (item: Item) => void
 }
 
-export default function Calendar({ posts }: CalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date())
+export default function Calendar({ items, onSelect }: Props) {
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
+  const today = new Date()
+  const y = cursor.getFullYear(), m = cursor.getMonth()
+  const daysInMonth = new Date(y, m + 1, 0).getDate()
+  const firstDay = new Date(y, m, 1).getDay()
+  const monthKey = `${y}-${String(m + 1).padStart(2, '0')}`
 
-  const daysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  const firstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-
-  const days = Array.from({ length: daysInMonth(currentDate) }, (_, i) => i + 1)
-  const emptyDays = Array.from({ length: firstDayOfMonth(currentDate) })
-
-  const getPostsForDay = (day: number) => {
-    return posts.filter((post) => {
-      const postDate = new Date(post.scheduleDate)
-      return postDate.getDate() === day && postDate.getMonth() === currentDate.getMonth()
-    })
+  const byDay = new Map<number, Item[]>()
+  for (const it of items) {
+    if (!it.schedule_date?.startsWith(monthKey)) continue
+    const day = Number(it.schedule_date.slice(8, 10))
+    byDay.set(day, [...(byDay.get(day) || []), it])
   }
 
   return (
-    <div className="bg-white rounded-lg p-6 shadow">
-      <h2 className="text-xl font-semibold mb-4">Calendar</h2>
-
-      <div className="flex justify-between items-center mb-6">
-        <button
-          onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
-          className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
-        >
-          ← Previous
-        </button>
-        <h3 className="text-lg font-semibold">
-          {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-        </h3>
-        <button
-          onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
-          className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
-        >
-          Next →
-        </button>
+    <div className="sq-card p-5 md:p-6 sq-fade-in">
+      <div className="flex justify-between items-center mb-5">
+        <button onClick={() => setCursor(new Date(y, m - 1, 1))} className="sq-tool h-9 w-9 rounded-full text-lg">‹</button>
+        <h3 className="text-lg font-bold">{cursor.toLocaleString('default', { month: 'long', year: 'numeric' })}</h3>
+        <button onClick={() => setCursor(new Date(y, m + 1, 1))} className="sq-tool h-9 w-9 rounded-full text-lg">›</button>
       </div>
 
-      <div className="grid grid-cols-7 gap-2 mb-2">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <div key={day} className="text-center font-semibold text-gray-600 text-sm py-2">
-            {day}
-          </div>
+      <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+          <div key={d} className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wide py-1">{d}</div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
-        {emptyDays.map((_, i) => (
-          <div key={`empty-${i}`} className="h-24 bg-gray-50 rounded"></div>
-        ))}
-        {days.map((day) => {
-          const dayPosts = getPostsForDay(day)
+      <div className="grid grid-cols-7 gap-1.5">
+        {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+          const isToday = today.getFullYear() === y && today.getMonth() === m && today.getDate() === day
+          const dayItems = (byDay.get(day) || []).sort((a, b) => (a.schedule_time || '').localeCompare(b.schedule_time || ''))
           return (
-            <div key={day} className="h-24 bg-white border rounded p-2 overflow-y-auto">
-              <div className="font-semibold text-sm mb-1">{day}</div>
+            <div key={day} className={`min-h-24 rounded-xl p-1.5 border transition ${isToday ? 'border-indigo-300 bg-indigo-50/60' : 'border-gray-100 bg-white/70 hover:bg-white'}`}>
+              <div className={`text-xs font-semibold mb-1 ${isToday ? 'text-indigo-700' : 'text-gray-600'}`}>{day}</div>
               <div className="space-y-1">
-                {dayPosts.slice(0, 2).map((post, i) => (
-                  <div key={i} className="text-xs bg-blue-100 text-blue-700 p-1 rounded truncate">
-                    {post.platforms?.includes('threads') ? '🧵' : ''} {post.platforms?.includes('twitter') ? '𝕏' : ''}
-                  </div>
+                {dayItems.slice(0, 3).map((it) => (
+                  <button key={it.id} onClick={() => onSelect(it)} title={it.title || it.content}
+                    className={`w-full text-left text-[11px] leading-tight px-1.5 py-1 rounded-md truncate transition hover:scale-[1.02] ${it.kind === 'blog' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                    <span className="font-medium">{formatTime(it.schedule_time)}</span>{' '}
+                    {it.kind === 'blog' ? '📝' : (Object.keys(it.platforms) as Platform[]).filter((p) => it.platforms[p]).map((p) => PLATFORM_META[p].icon).join('')}
+                    {' '}{it.title || it.content.slice(0, 30)}
+                  </button>
                 ))}
-                {dayPosts.length > 2 && <div className="text-xs text-gray-500">+{dayPosts.length - 2} more</div>}
+                {dayItems.length > 3 && <div className="text-[10px] text-gray-500 px-1">+{dayItems.length - 3} more</div>}
               </div>
             </div>
           )
