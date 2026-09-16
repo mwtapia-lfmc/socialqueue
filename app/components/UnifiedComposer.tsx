@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { authedFetch } from '../lib/api'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
@@ -62,6 +63,7 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
   const [scheduleDate, setScheduleDate] = useState('')
   const [scheduleTime, setScheduleTime] = useState('09:00')
   const [scheduling, setScheduling] = useState(false)
+  const [posting, setPosting] = useState(false)
   const [previewTab, setPreviewTab] = useState<Platform | 'blog'>('threads')
   const [showEmoji, setShowEmoji] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -190,6 +192,24 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
     setScheduling(false)
     if (!saved) return
     setShowSchedule(false)
+    reset()
+    onScheduled()
+  }
+
+  const postNow = async () => {
+    if (!confirm('Publish this to the selected platforms right now?')) return
+    setPosting(true)
+    const now = new Date()
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    const saved = await persist({ status: 'scheduled', schedule_date: date, schedule_time: time })
+    if (!saved) { setPosting(false); return }
+    const r = await authedFetch('/api/publish', { method: 'POST', body: JSON.stringify({ id: saved.id }) })
+    const data = await r.json()
+    setPosting(false)
+    if (!r.ok) { alert(data.error || 'Publish failed'); onScheduled(); return }
+    const failures = Object.entries(data.log || {}).filter(([, v]: any) => !v.ok)
+    if (failures.length) alert('Some platforms failed:\n' + failures.map(([p, v]: any) => `${p}: ${v.error}`).join('\n'))
     reset()
     onScheduled()
   }
@@ -363,6 +383,12 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
             Save draft
           </button>
           <span className="flex-1" />
+          {draft.kind === 'post' && !showSchedule && (
+            <button type="button" onClick={postNow} disabled={posting || !draft.content.trim()}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">
+              {posting ? <span className="sq-pulse">Posting…</span> : '🚀 Post now'}
+            </button>
+          )}
           {!showSchedule ? (
             <button type="button" onClick={() => setShowSchedule(true)} disabled={!draft.content.trim()} className="sq-btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold">
               📅 Schedule →
