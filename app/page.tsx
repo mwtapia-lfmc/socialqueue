@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
+import { authedFetch } from './lib/api'
 import UnifiedComposer, { type Item } from './components/UnifiedComposer'
 import Drafts from './components/Drafts'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
+import Accounts, { type Connection } from './components/Accounts'
 
-type View = 'compose' | 'drafts' | 'calendar' | 'queue'
+type View = 'compose' | 'drafts' | 'calendar' | 'queue' | 'accounts'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<Item[]>([])
+  const [connections, setConnections] = useState<Connection[]>([])
   const [view, setView] = useState<View>('compose')
   const [editing, setEditing] = useState<Item | null>(null)
 
@@ -22,19 +25,24 @@ export default function Home() {
     setItems((data || []) as Item[])
   }, [])
 
+  const loadConnections = useCallback(async () => {
+    const r = await authedFetch('/api/connections')
+    if (r.ok) setConnections((await r.json()).connections || [])
+  }, [])
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
-      if (session?.user) loadItems(session.user.id)
+      if (session?.user) { loadItems(session.user.id); loadConnections() }
       setLoading(false)
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null)
-      if (session?.user) loadItems(session.user.id)
-      else setItems([])
+      if (session?.user) { loadItems(session.user.id); loadConnections() }
+      else { setItems([]); setConnections([]) }
     })
     return () => sub.subscription.unsubscribe()
-  }, [loadItems])
+  }, [loadItems, loadConnections])
 
   const signIn = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
   const signOut = () => supabase.auth.signOut()
@@ -48,22 +56,30 @@ export default function Home() {
     upsertLocal(data as Item)
   }
   const schedule = (item: Item, date: string, time: string) => setStatus(item, { status: 'scheduled', schedule_date: date, schedule_time: time })
-  const unschedule = (item: Item) => setStatus(item, { status: 'draft', schedule_date: null, schedule_time: null })
+  const unschedule = (item: Item) => setStatus(item, { status: 'draft', schedule_date: null, schedule_time: null, publish_log: null })
   const remove = async (item: Item) => {
     const { error } = await supabase.from('items').delete().eq('id', item.id)
     if (error) { alert('Delete failed: ' + error.message); return }
     setItems((prev) => prev.filter((i) => i.id !== item.id))
     if (editing?.id === item.id) setEditing(null)
   }
+  const publishNow = async (item: Item) => {
+    const r = await authedFetch('/api/publish', { method: 'POST', body: JSON.stringify({ id: item.id }) })
+    const data = await r.json()
+    if (!r.ok) alert(data.error || 'Publish failed')
+    await loadItems(user.id)
+  }
 
   const drafts = items.filter((i) => i.status === 'draft')
   const scheduled = items.filter((i) => i.status === 'scheduled')
+  const queue = items.filter((i) => i.status !== 'draft')
 
   const tabs: { key: View; label: string; count?: number }[] = [
     { key: 'compose', label: '✍️ Compose' },
     { key: 'drafts', label: '📝 Drafts', count: drafts.length },
     { key: 'calendar', label: '📅 Calendar' },
     { key: 'queue', label: '🚀 Queue', count: scheduled.length },
+    { key: 'accounts', label: '🔗 Accounts', count: connections.length },
   ]
 
   return (
@@ -107,12 +123,21 @@ export default function Home() {
               ))}
             </div>
 
+            {connections.length === 0 && view === 'compose' && (
+              <button onClick={() => setView('accounts')} className="w-full mb-5 text-left sq-card p-4 flex items-center gap-3 border-amber-200 bg-amber-50/70 hover:bg-amber-50 sq-fade-in">
+                <span className="text-xl">🔗</span>
+                <span className="text-sm text-amber-900"><strong>No accounts connected.</strong> Scheduled posts won't publish anywhere yet — connect Bluesky to start.</span>
+                <span className="ml-auto text-amber-700 text-sm font-medium">Connect →</span>
+              </button>
+            )}
+
             {view === 'compose' && (
               <UnifiedComposer key={editing?.id ?? 'new'} userId={user.id} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
             )}
             {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
             {view === 'calendar' && <Calendar items={scheduled} onSelect={edit} />}
-            {view === 'queue' && <ScheduledPosts items={scheduled} onEdit={edit} onUnschedule={unschedule} onDelete={remove} />}
+            {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
+            {view === 'accounts' && <Accounts connections={connections} onChange={loadConnections} />}
           </>
         )}
       </div>

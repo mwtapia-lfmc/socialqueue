@@ -16,7 +16,9 @@ export interface Item {
   hashtags: string[] | null
   image_urls: string[] | null
   analysis: any
-  status: 'draft' | 'scheduled' | 'published'
+  status: 'draft' | 'scheduled' | 'published' | 'failed'
+  published_at?: string | null
+  publish_log?: Record<string, { ok: boolean; url?: string; error?: string }> | null
   schedule_date: string | null
   schedule_time: string | null
   created_at: string

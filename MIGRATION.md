@@ -62,3 +62,33 @@ CREATE POLICY "media is publicly readable" ON storage.objects FOR SELECT
 - Supabase → Authentication → Providers → Google: enabled with a Google Cloud OAuth client (redirect URI `https://fbkroevujomkefgnprym.supabase.co/auth/v1/callback`). Consent screen is in *testing* mode — only listed test users can sign in.
 - Supabase → Authentication → URL Configuration: Site URL `https://socialqueue-kappa.vercel.app`, redirect `https://socialqueue-kappa.vercel.app/**`
 - Vercel env: `ANTHROPIC_API_KEY` set. `OPENAI_API_KEY` (image generation + AI edits), `BLUESKY_*`, `EVERNOTE_*` optional — routes return sample data without them.
+
+## 3. Connected accounts + auto-publish scheduler
+
+Stores per-user platform credentials (RLS-scoped) and adds publish tracking to `items`. The `pg_cron` job pings the publish endpoint every minute; it needs `CRON_SECRET` and `SUPABASE_SERVICE_ROLE_KEY` set on Vercel.
+
+```sql
+CREATE TABLE connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  handle TEXT NOT NULL,
+  account_id TEXT,
+  credentials JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, platform)
+);
+ALTER TABLE connections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "own connections" ON connections FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE items ADD COLUMN published_at TIMESTAMPTZ, ADD COLUMN publish_log JSONB;
+
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_net;
+SELECT cron.schedule('socialqueue-publish', '* * * * *', $$
+  SELECT net.http_get(
+    url := 'https://socialqueue-kappa.vercel.app/api/cron/publish',
+    headers := '{"Authorization": "Bearer <CRON_SECRET from .env.local>"}'::jsonb
+  );
+$$);
+```
