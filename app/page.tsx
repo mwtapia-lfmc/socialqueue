@@ -18,6 +18,7 @@ export default function Home() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [view, setView] = useState<View>('compose')
   const [editing, setEditing] = useState<Item | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   const loadItems = useCallback(async (userId: string) => {
     const { data, error } = await supabase.from('items').select('*').eq('user_id', userId).order('updated_at', { ascending: false })
@@ -31,6 +32,12 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search.slice(1) + '&' + window.location.hash.slice(1))
+    const desc = params.get('error_description') || params.get('error')
+    if (desc) {
+      setAuthError(decodeURIComponent(desc.replace(/\+/g, ' ')))
+      window.history.replaceState({}, '', window.location.pathname)
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) { loadItems(session.user.id); loadConnections() }
@@ -111,6 +118,12 @@ export default function Home() {
               One composer for Threads, X, Bluesky, and your blog — with AI analysis, image generation sized for each platform, and autosaved drafts.
             </p>
             <button onClick={signIn} className="sq-btn-primary px-8 py-4 rounded-2xl text-lg font-semibold">Sign in with Google</button>
+            {authError && (
+              <div className="max-w-xl mx-auto mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-left sq-fade-in">
+                <p className="text-sm font-semibold text-red-800">Sign-in didn't complete</p>
+                <p className="text-sm text-red-700 mt-1">{authError}</p>
+              </div>
+            )}
           </div>
         ) : (
           <>

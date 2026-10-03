@@ -32,12 +32,13 @@ async function publishToBluesky(conn: any, text: string, imageUrls: string[]): P
 
 export async function publishItem(db: SupabaseClient, item: any) {
   const { data: conns } = await db.from('connections').select('*').eq('user_id', item.user_id)
-  const text = markdownToSocial(item.content)
+  const baseText = markdownToSocial(item.content)
   const log: Record<string, Result> = {}
 
   for (const p of Object.keys(item.platforms || {}).filter((k) => item.platforms[k])) {
     const conn = conns?.find((c) => c.platform === p)
     if (!conn) { log[p] = { ok: false, error: 'Account not connected' }; continue }
+    const text = item.overrides?.[p] ?? baseText
     try {
       log[p] = p === 'bluesky'
         ? await publishToBluesky(conn, text, item.image_urls || [])

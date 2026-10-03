@@ -92,3 +92,9 @@ SELECT cron.schedule('socialqueue-publish', '* * * * *', $$
   );
 $$);
 ```
+
+## 4. Per-platform text overrides
+
+```sql
+ALTER TABLE items ADD COLUMN overrides JSONB NOT NULL DEFAULT '{}';
+```

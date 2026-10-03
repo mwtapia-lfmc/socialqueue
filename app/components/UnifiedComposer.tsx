@@ -6,6 +6,7 @@ import { authedFetch } from '../lib/api'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
+import PlatformPreviews from './PlatformPreviews'
 
 export interface Item {
   id: string
@@ -17,6 +18,7 @@ export interface Item {
   hashtags: string[] | null
   image_urls: string[] | null
   analysis: any
+  overrides?: Record<string, string> | null
   status: 'draft' | 'scheduled' | 'published' | 'failed'
   published_at?: string | null
   publish_log?: Record<string, { ok: boolean; url?: string; error?: string }> | null
@@ -46,6 +48,7 @@ const empty = (): Omit<Item, 'id' | 'created_at' | 'updated_at'> => ({
   hashtags: [],
   image_urls: [],
   analysis: null,
+  overrides: {},
   status: 'draft',
   schedule_date: null,
   schedule_time: null,
@@ -56,6 +59,7 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
   const [draft, setDraft] = useState(() => (item ? { ...empty(), ...item } : empty()))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
   const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [showEvernote, setShowEvernote] = useState(false)
   const [notes, setNotes] = useState<any[] | null>(null)
@@ -64,7 +68,6 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
   const [scheduleTime, setScheduleTime] = useState('09:00')
   const [scheduling, setScheduling] = useState(false)
   const [posting, setPosting] = useState(false)
-  const [previewTab, setPreviewTab] = useState<Platform | 'blog'>('threads')
   const [showEmoji, setShowEmoji] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const skipNextSave = useRef(true)
@@ -95,6 +98,7 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
         hashtags: draft.hashtags,
         image_urls: draft.image_urls,
         analysis: draft.analysis,
+        overrides: draft.overrides || {},
         updated_at: new Date().toISOString(),
         ...extra,
       }
@@ -105,10 +109,12 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
       const { data, error } = await q
       if (error) {
         console.error('Save failed:', error)
+        setSaveError(error.message)
         setSaveState('error')
         return null
       }
       setId(data.id)
+      setSaveError(null)
       setSaveState('saved')
       setSavedAt(new Date())
       onSaved(data as Item)
@@ -224,16 +230,14 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
 
   const selectedPlatforms = PLATFORMS.filter((p) => draft.platforms[p])
   const socialText = markdownToSocial(draft.content)
-  const socialLen = countChars(socialText)
-  const activePreview: Platform | 'blog' =
-    draft.kind === 'blog' ? 'blog' : selectedPlatforms.includes(previewTab as Platform) ? previewTab : selectedPlatforms[0] || 'threads'
-  const previewRatio = RATIOS[PLATFORM_RATIO[activePreview]]
+  const effectiveText = (p: Platform) => draft.overrides?.[p] ?? socialText
+  const previewRatio = RATIOS[PLATFORM_RATIO[draft.kind === 'blog' ? 'blog' : selectedPlatforms[0] || 'threads']]
   const firstImage = draft.image_urls?.[0]
 
   const saveLabel =
     saveState === 'saving' ? 'Saving…'
     : saveState === 'saved' && savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-    : saveState === 'error' ? 'Save failed — run the items table SQL?'
+    : saveState === 'error' ? `Save failed${saveError ? ': ' + saveError : ''}`
     : saveState === 'dirty' ? 'Unsaved changes'
     : id ? 'Draft' : 'New draft'
 
@@ -317,9 +321,9 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
               <span className="text-gray-400">{countChars(draft.content)} chars</span>
               {draft.kind === 'post' && selectedPlatforms.map((p) => {
                 const limit = PLATFORM_LIMITS[p]
-                const pct = socialLen / limit
-                const cls = pct > 1 ? 'text-red-600 font-semibold' : pct > 0.9 ? 'text-amber-600' : 'text-gray-500'
-                return <span key={p} className={cls}>{PLATFORM_META[p].icon} {socialLen}/{limit}</span>
+                const n = countChars(effectiveText(p))
+                const cls = n > limit ? 'text-red-600 font-semibold' : n > limit * 0.9 ? 'text-amber-600' : 'text-gray-500'
+                return <span key={p} className={cls}>{PLATFORM_META[p].icon} {n}/{limit}{draft.overrides?.[p] != null ? '*' : ''}</span>
               })}
             </div>
           </div>
@@ -407,43 +411,35 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
       </div>
 
       <div className="lg:col-span-2 space-y-5">
-        <div className="sq-card p-5 lg:sticky lg:top-24">
+        <div className="sq-card p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-800">Preview</h3>
-            {draft.kind === 'post' && selectedPlatforms.length > 1 && (
-              <div className="flex gap-1">
-                {selectedPlatforms.map((p) => (
-                  <button key={p} type="button" onClick={() => setPreviewTab(p)}
-                    className={`h-7 w-7 rounded-full text-sm ${activePreview === p ? PLATFORM_META[p].color : 'bg-gray-100'}`} title={PLATFORM_META[p].label}>
-                    {PLATFORM_META[p].icon}
-                  </button>
-                ))}
-              </div>
-            )}
+            <h3 className="text-sm font-semibold text-gray-800">{draft.kind === 'blog' ? 'Preview' : 'Live previews'}</h3>
+            {draft.kind === 'post' && <span className="text-[11px] text-gray-400">click any to edit for that platform</span>}
           </div>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />
-              <div>
-                <p className="text-sm font-semibold leading-tight">You</p>
-                <p className="text-[11px] text-gray-400">{activePreview === 'blog' ? 'Blog draft' : `@you · ${PLATFORM_META[activePreview as Platform].label}`}</p>
+          {draft.kind === 'blog' ? (
+            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />
+                <div><p className="text-sm font-semibold leading-tight">You</p><p className="text-[11px] text-gray-400">Blog draft</p></div>
               </div>
+              {draft.title && <h1 className="text-xl font-bold mb-2">{draft.title}</h1>}
+              {firstImage && <img src={firstImage} alt="" className="w-full rounded-xl mb-3 object-cover" style={{ aspectRatio: `${previewRatio.w} / ${previewRatio.h}` }} />}
+              <div className="sq-preview text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: markdownToHtml(draft.content) || '<p class="text-gray-300">Your blog will render here…</p>' }} />
             </div>
-            {activePreview === 'blog' ? (
-              <>
-                {draft.title && <h1 className="text-xl font-bold mb-2">{draft.title}</h1>}
-                {firstImage && <img src={firstImage} alt="" className="w-full rounded-xl mb-3 object-cover" style={{ aspectRatio: `${previewRatio.w} / ${previewRatio.h}` }} />}
-                <div className="sq-preview text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: markdownToHtml(draft.content) || '<p class="text-gray-300">Your blog will render here…</p>' }} />
-              </>
-            ) : (
-              <>
-                <p className="text-[15px] whitespace-pre-wrap break-words text-gray-900 min-h-6">{socialText || <span className="text-gray-300">Your post will appear here…</span>}</p>
-                {firstImage && <img src={firstImage} alt="" className="w-full rounded-xl mt-3 object-cover" style={{ aspectRatio: `${previewRatio.w} / ${previewRatio.h}` }} />}
-                <div className="flex gap-6 mt-3 text-gray-400 text-sm"><span>♡</span><span>💬</span><span>↻</span><span>↗</span></div>
-              </>
-            )}
-          </div>
+          ) : (
+            <PlatformPreviews
+              platforms={selectedPlatforms}
+              baseText={socialText}
+              overrides={draft.overrides || {}}
+              image={firstImage}
+              onOverride={(p, text) => {
+                const next = { ...(draft.overrides || {}) }
+                if (text == null) delete next[p]; else next[p] = text
+                update({ overrides: next })
+              }}
+            />
+          )}
 
           {draft.analysis && (
             <div className="mt-4 space-y-3 sq-fade-in">
