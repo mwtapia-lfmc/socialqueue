@@ -106,7 +106,15 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
       const q = id
         ? supabase.from('items').update(payload).eq('id', id).select().single()
         : supabase.from('items').insert(payload).select().single()
-      const { data, error } = await q
+      let { data, error } = await q
+      if (!error) setSaveError(null)
+      if (error && /overrides/.test(error.message)) {
+        const { overrides: _o, ...withoutOverrides } = payload
+        setSaveError('per-platform edits not stored until DB is updated')
+        ;({ data, error } = await (id
+          ? supabase.from('items').update(withoutOverrides).eq('id', id).select().single()
+          : supabase.from('items').insert(withoutOverrides).select().single()))
+      }
       if (error) {
         console.error('Save failed:', error)
         setSaveError(error.message)
@@ -114,7 +122,6 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
         return null
       }
       setId(data.id)
-      setSaveError(null)
       setSaveState('saved')
       setSavedAt(new Date())
       onSaved(data as Item)
@@ -236,14 +243,14 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
 
   const saveLabel =
     saveState === 'saving' ? 'Saving…'
-    : saveState === 'saved' && savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+    : saveState === 'saved' && savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${saveError ? ' · ' + saveError : ''}`
     : saveState === 'error' ? `Save failed${saveError ? ': ' + saveError : ''}`
     : saveState === 'dirty' ? 'Unsaved changes'
     : id ? 'Draft' : 'New draft'
 
   return (
     <div className="grid lg:grid-cols-5 gap-6 sq-fade-in">
-      <div className="lg:col-span-3 space-y-5">
+      <div className="lg:col-span-3">
         <div className="sq-card p-5 md:p-6 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-1 p-1 bg-gray-100 rounded-full">
@@ -371,46 +378,9 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
             </div>
           )}
         </div>
-
-        <div className="sq-card p-5 md:p-6">
-          <h3 className="text-sm font-semibold text-gray-800 mb-3">🎨 Images</h3>
-          <ImageStudio userId={userId} kind={draft.kind} platforms={draft.platforms} images={draft.image_urls || []} onChange={(image_urls) => update({ image_urls })} />
-        </div>
-
-        <div className="sq-card p-4 flex flex-wrap gap-3 items-center">
-          <button type="button" onClick={analyze} disabled={analyzing || !draft.content.trim()}
-            className="px-4 py-2.5 rounded-xl text-sm font-medium bg-purple-100 text-purple-800 hover:bg-purple-200 disabled:opacity-50">
-            {analyzing ? <span className="sq-pulse">Analyzing…</span> : '✨ Analyze'}
-          </button>
-          <button type="button" onClick={() => persist()} disabled={saveState === 'saving'}
-            className="px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-800 hover:bg-gray-200">
-            Save draft
-          </button>
-          <span className="flex-1" />
-          {draft.kind === 'post' && !showSchedule && (
-            <button type="button" onClick={postNow} disabled={posting || !draft.content.trim()}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">
-              {posting ? <span className="sq-pulse">Posting…</span> : '🚀 Post now'}
-            </button>
-          )}
-          {!showSchedule ? (
-            <button type="button" onClick={() => setShowSchedule(true)} disabled={!draft.content.trim()} className="sq-btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold">
-              📅 Schedule →
-            </button>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2 sq-fade-in">
-              <input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="h-10 px-2 text-sm border border-gray-200 rounded-lg" />
-              <input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="h-10 px-2 text-sm border border-gray-200 rounded-lg" />
-              <button type="button" onClick={schedule} disabled={scheduling} className="sq-btn-primary h-10 px-4 rounded-lg text-sm font-semibold">
-                {scheduling ? 'Scheduling…' : 'Confirm'}
-              </button>
-              <button type="button" onClick={() => setShowSchedule(false)} className="h-10 px-3 text-sm text-gray-500">Cancel</button>
-            </div>
-          )}
-        </div>
       </div>
 
-      <div className="lg:col-span-2 space-y-5">
+      <div className="lg:col-span-2 lg:col-start-4 lg:row-start-1 lg:row-span-3">
         <div className="sq-card p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-800">{draft.kind === 'blog' ? 'Preview' : 'Live previews'}</h3>
@@ -473,6 +443,49 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
           )}
         </div>
       </div>
+
+      <div className="lg:col-span-3 lg:col-start-1">
+        <div className="sq-card p-5 md:p-6">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">🎨 Images</h3>
+          <ImageStudio userId={userId} kind={draft.kind} platforms={draft.platforms} images={draft.image_urls || []} onChange={(image_urls) => update({ image_urls })} />
+        </div>
+      </div>
+
+      <div className="lg:col-span-3 lg:col-start-1">
+        <div className="sq-card p-4 flex flex-wrap gap-3 items-center">
+          <button type="button" onClick={analyze} disabled={analyzing || !draft.content.trim()}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium bg-purple-100 text-purple-800 hover:bg-purple-200 disabled:opacity-50">
+            {analyzing ? <span className="sq-pulse">Analyzing…</span> : '✨ Analyze'}
+          </button>
+          <button type="button" onClick={() => persist()} disabled={saveState === 'saving'}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-800 hover:bg-gray-200">
+            Save draft
+          </button>
+          <span className="flex-1" />
+          {draft.kind === 'post' && !showSchedule && (
+            <button type="button" onClick={postNow} disabled={posting || !draft.content.trim()}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">
+              {posting ? <span className="sq-pulse">Posting…</span> : '🚀 Post now'}
+            </button>
+          )}
+          {!showSchedule ? (
+            <button type="button" onClick={() => setShowSchedule(true)} disabled={!draft.content.trim()} className="sq-btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold">
+              📅 Schedule →
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 sq-fade-in">
+              <input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="h-10 px-2 text-sm border border-gray-200 rounded-lg" />
+              <input type="time" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className="h-10 px-2 text-sm border border-gray-200 rounded-lg" />
+              <button type="button" onClick={schedule} disabled={scheduling} className="sq-btn-primary h-10 px-4 rounded-lg text-sm font-semibold">
+                {scheduling ? 'Scheduling…' : 'Confirm'}
+              </button>
+              <button type="button" onClick={() => setShowSchedule(false)} className="h-10 px-3 text-sm text-gray-500">Cancel</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+
     </div>
   )
 }
