@@ -429,7 +429,8 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
             </div>
           ) : (
             <PlatformPreviews
-              platforms={selectedPlatforms}
+              selected={draft.platforms}
+              onToggle={(p) => update({ platforms: { ...draft.platforms, [p]: !draft.platforms[p] } })}
               baseText={socialText}
               overrides={draft.overrides || {}}
               image={firstImage}

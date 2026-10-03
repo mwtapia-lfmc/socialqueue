@@ -5,7 +5,8 @@ import { PLATFORM_LIMITS, PLATFORM_META, countChars, type Platform } from '../li
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 
 interface Props {
-  platforms: Platform[]
+  selected: Record<Platform, boolean>
+  onToggle: (platform: Platform) => void
   baseText: string
   overrides: Record<string, string>
   image?: string
@@ -18,7 +19,9 @@ const SKIN: Record<Platform, { name: string; handle: string; bg: string; text: s
   bluesky: { name: 'You', handle: '@you.bsky.social · 1m', bg: 'bg-white', text: 'text-gray-900', sub: 'text-gray-500', actions: ['💬', '↻', '♡', '⋯'] },
 }
 
-export default function PlatformPreviews({ platforms, baseText, overrides, image, onOverride }: Props) {
+const ALL = Object.keys(PLATFORM_META) as Platform[]
+
+export default function PlatformPreviews({ selected, onToggle, baseText, overrides, image, onOverride }: Props) {
   const [editing, setEditing] = useState<Platform | null>(null)
   const [buffer, setBuffer] = useState('')
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -32,11 +35,10 @@ export default function PlatformPreviews({ platforms, baseText, overrides, image
     setEditing(null)
   }
 
-  if (platforms.length === 0) return <p className="text-sm text-gray-400 text-center py-6">Pick at least one platform to preview.</p>
-
   return (
     <div className="space-y-4">
-      {platforms.map((p) => {
+      {ALL.map((p) => {
+        const on = !!selected[p]
         const skin = SKIN[p]
         const meta = PLATFORM_META[p]
         const custom = p in overrides
@@ -47,9 +49,13 @@ export default function PlatformPreviews({ platforms, baseText, overrides, image
         const isEditing = editing === p
         const lenCls = len > limit ? 'text-red-600 font-semibold' : len > limit * 0.9 ? 'text-amber-600' : 'text-gray-400'
         return (
-          <div key={p} className={`rounded-2xl border transition ${isEditing ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200 hover:border-indigo-300'} ${skin.bg} overflow-hidden sq-fade-in`}>
+          <div key={p} className={`rounded-2xl border transition ${isEditing ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200 hover:border-indigo-300'} ${skin.bg} overflow-hidden sq-fade-in ${on ? '' : 'opacity-55 grayscale-[0.4]'}`}>
             <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-gray-50/80">
               <span className={`text-[11px] px-2 py-0.5 rounded-full ${meta.color}`}>{meta.icon} {meta.label}</span>
+              <button type="button" onClick={() => onToggle(p)} title={on ? 'Click to skip this platform' : 'Click to post here'}
+                className={`flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border transition ${on ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-gray-300'}`} />{on ? 'Posting' : 'Off'}
+              </button>
               {custom && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">Customized</span>}
               <span className="flex-1" />
               <span className={`text-[11px] ${lenCls}`}>{len}/{limit}</span>
