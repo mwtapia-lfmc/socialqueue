@@ -39,10 +39,13 @@ export default function PlatformPreviews({ accounts, selected, onToggle, baseTex
     setEditing(null)
   }
 
+  const shown = ALL.filter((p) => selected[p])
+  if (shown.length === 0) return <p className="text-sm text-gray-400 text-center py-8">No platforms selected. Turn on a pill under the editor to see its preview.</p>
+
   return (
     <div className="space-y-4">
-      {ALL.map((p) => {
-        const on = !!selected[p]
+      {shown.map((p) => {
+        const on = true
         const acct = accounts[p]
         const skin = SKIN[p]
         const meta = PLATFORM_META[p]
@@ -54,12 +57,12 @@ export default function PlatformPreviews({ accounts, selected, onToggle, baseTex
         const isEditing = editing === p
         const lenCls = len > limit ? 'text-red-600 font-semibold' : len > limit * 0.9 ? 'text-amber-600' : 'text-gray-400'
         return (
-          <div key={p} className={`rounded-2xl border transition ${isEditing ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200 hover:border-indigo-300'} ${skin.bg} overflow-hidden sq-fade-in ${on ? '' : 'opacity-55 grayscale-[0.4]'}`}>
+          <div key={p} className={`rounded-2xl border transition ${isEditing ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200 hover:border-indigo-300'} ${skin.bg} overflow-hidden sq-fade-in`}>
             <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-gray-50/80">
               <span className={`text-[11px] px-2 py-0.5 rounded-full ${meta.color}`}>{meta.icon} {meta.label}</span>
-              <button type="button" onClick={() => onToggle(p)} title={on ? 'Click to skip this platform' : 'Click to post here'}
-                className={`flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border transition ${on ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-gray-300'}`} />{on ? 'Posting' : 'Off'}
+              <button type="button" onClick={() => onToggle(p)} title="Click to skip this platform"
+                className="flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border transition bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Posting
               </button>
               {custom && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">Customized</span>}
               <span className="flex-1" />
