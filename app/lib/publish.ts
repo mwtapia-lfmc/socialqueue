@@ -90,7 +90,7 @@ async function publishToThreads(db: SupabaseClient, conn: any, text: string, ima
 async function xRefreshIfNeeded(db: SupabaseClient, conn: any): Promise<string> {
   const { accessToken, refreshToken, expiresAt } = conn.credentials
   if (!refreshToken || new Date(expiresAt).getTime() - Date.now() > 5 * 60_000) return accessToken
-  const clientId = process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID!, secret = process.env.TWITTER_CLIENT_SECRET || ''
+  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID)!, secret = (process.env.X_CLIENT_SECRET || process.env.TWITTER_CLIENT_SECRET) || ''
   const r = await fetch('https://api.twitter.com/2/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(secret ? { Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}` } : {}) },

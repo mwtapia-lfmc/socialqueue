@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const verifier = readCookie(request, 'sq_x_verifier'); if (!verifier) return fail(url.origin, 'Login took too long, try again')
   const { db, user } = await userFromJwt(request, st.jwt); if (!user) return fail(url.origin, 'Session expired, sign in again')
 
-  const clientId = process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID!, secret = process.env.TWITTER_CLIENT_SECRET || ''
+  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID)!, secret = (process.env.X_CLIENT_SECRET || process.env.TWITTER_CLIENT_SECRET) || ''
   const tokRes = await fetch('https://api.twitter.com/2/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(secret ? { Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}` } : {}) },

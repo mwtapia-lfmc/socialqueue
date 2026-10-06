@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   if (!jwt) return Response.json({ error: 'Not signed in' }, { status: 401 })
   const { user } = await userFromJwt(request, jwt)
   if (!user) return Response.json({ error: 'Not signed in' }, { status: 401 })
-  const clientId = process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID
+  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID)
   if (!clientId || clientId.includes('YOUR_')) return Response.redirect(`${url.origin}/?connect_error=${encodeURIComponent('X client ID not configured on the server yet')}`, 302)
 
   const { verifier, challenge } = pkcePair()
