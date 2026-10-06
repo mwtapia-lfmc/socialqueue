@@ -19,7 +19,7 @@ const dayLabel = (key: string) => {
 export default function Profiles({ onRepurpose, onConnect }: Props) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
-  const [mode, setMode] = useState<'columns' | 'timeline'>('columns')
+  const [mode, setMode] = useState<'columns' | 'timeline'>('timeline')
   const colRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const jumpTo = (key: string) => {
@@ -104,12 +104,14 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
           <div className="sq-scroll overflow-y-auto" style={{ maxHeight: '70vh' }}>
             {rows.map((row) =>
               row.quiet ? (
-                <div key={row.key} className="grid gap-x-3 items-center" style={{ gridTemplateColumns: cols }}>
-                  {profiles.map((pr) => <div key={pr.platform} className="h-5 border-l border-dashed border-gray-200 ml-3" />)}
-                  <div className="text-[9px] text-gray-300 text-right pr-1">{row.quiet}d</div>
+                <div key={row.key} className="grid gap-x-3 items-stretch" style={{ gridTemplateColumns: cols, height: Math.min(14 + row.quiet * 7, 90) }}>
+                  {profiles.map((pr) => <div key={pr.platform} className="border-l border-dashed border-gray-200 ml-3" />)}
+                  <div className="text-[9px] text-gray-300 text-right pr-1 self-center">{row.quiet} quiet day{row.quiet > 1 ? 's' : ''}</div>
                 </div>
               ) : (
-                <div key={row.key} className={`grid gap-x-3 py-1.5 border-t border-gray-100 ${row.key === todayKey ? 'bg-indigo-50/40 rounded-lg' : ''}`} style={{ gridTemplateColumns: cols }}>
+                <div key={row.key} className={`relative grid gap-x-3 py-2 items-start ${row.key === todayKey ? 'bg-indigo-50/40 rounded-lg' : ''}`} style={{ gridTemplateColumns: cols }}>
+                  <div className={`absolute left-0 right-0 top-0 border-t ${row.key === todayKey ? 'border-indigo-300' : 'border-gray-200'}`} />
+                  <div className={`absolute right-0 top-0 h-2 w-2 -translate-y-1/2 rounded-full ${row.key === todayKey ? 'bg-indigo-500' : 'bg-gray-300'}`} />
                   {profiles.map((pr) => {
                     const ps = postsOn(pr, row.key)
                     return (
@@ -132,8 +134,8 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
                       </div>
                     )
                   })}
-                  <div className={`text-right pr-1 self-start pt-1 leading-tight ${row.key === todayKey ? 'text-indigo-600' : 'text-gray-400'}`}>
-                    <div className="text-[11px] font-medium">{dayLabel(row.key).replace(/,.*$/, '')}</div>
+                  <div className={`text-right pr-1 self-start pt-0.5 leading-tight ${row.key === todayKey ? 'text-indigo-600' : 'text-gray-500'}`}>
+                    <div className="text-[11px] font-semibold">{dayLabel(row.key).replace(/,.*$/, '')}</div>
                     <div className="text-[10px]">{row.key === todayKey ? '' : (() => { const [y, m, d] = row.key.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })()}</div>
                   </div>
                 </div>
