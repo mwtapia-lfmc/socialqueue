@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { authedFetch } from '../lib/api'
+import { useState } from 'react'
 import { PLATFORM_META, timeAgo, type Platform } from '../lib/text'
 import type { Profile, ProfilePost } from '../api/profiles/route'
 
-interface Props { onRepurpose: (text: string, platform: Platform) => void; onConnect: () => void }
+interface Props { profiles: Profile[] | null; loading: boolean; onRefresh: () => void; onRepurpose: (text: string, platform: Platform) => void; onConnect: () => void }
 
 const n = (v?: number) => (v == null ? '' : v >= 10000 ? `${(v / 1000).toFixed(1)}k` : String(v))
 const dayKey = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
@@ -16,13 +15,8 @@ const dayLabel = (key: string) => {
   return dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', ...(dt.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })
 }
 
-export default function Profiles({ onRepurpose, onConnect }: Props) {
-  const [profiles, setProfiles] = useState<Profile[] | null>(null)
+export default function Profiles({ profiles, loading, onRefresh, onRepurpose, onConnect }: Props) {
   const [mode, setMode] = useState<'columns' | 'timeline'>('columns')
-
-  useEffect(() => {
-    authedFetch('/api/profiles').then((r) => r.json()).then((d) => setProfiles(d.profiles || []))
-  }, [])
 
   if (!profiles) return <div className="sq-card p-10 text-center text-gray-400 sq-pulse">Loading your profiles…</div>
   if (profiles.length === 0) return (
@@ -39,6 +33,7 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
   }
   const Toggle = (
     <div className="flex items-center gap-2 mb-4">
+      <button onClick={onRefresh} disabled={loading} title="Refresh from platforms" className={`sq-tool h-8 w-8 rounded-full text-sm ${loading ? 'sq-pulse' : ''}`}>↻</button>
       <div className="flex gap-1 p-1 bg-white/70 border border-gray-200 rounded-full">
         {(['columns', 'timeline'] as const).map((m) => (
           <button key={m} onClick={() => setMode(m)} className={`sq-tab px-3 py-1 rounded-full text-xs font-medium ${mode === m ? 'sq-tab-active' : 'text-gray-600 hover:text-gray-900'}`}>

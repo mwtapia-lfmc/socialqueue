@@ -70,10 +70,17 @@ export async function GET(request: Request) {
   const db = userClient(request)
   const { data, error } = await db.from('connections').select('*')
   if (error) return Response.json({ error: error.message }, { status: 401 })
+  const fresh = new URL(request.url).searchParams.get('fresh') === '1'
+  const TTL = 10 * 60_000
   const profiles = await Promise.all((data || []).map(async (c) => {
+    const cached = c.credentials?.profileCache
+    if (!fresh && cached?.at && Date.now() - new Date(cached.at).getTime() < TTL) return cached.data as Profile
     try {
-      return c.platform === 'bluesky' ? await bluesky(c) : c.platform === 'threads' ? await threads(c) : c.platform === 'twitter' ? await twitter(c) : c.platform === 'linkedin' ? await linkedin(c) : null
+      const prof = c.platform === 'bluesky' ? await bluesky(c) : c.platform === 'threads' ? await threads(c) : c.platform === 'twitter' ? await twitter(c) : c.platform === 'linkedin' ? await linkedin(c) : null
+      if (prof) await db.from('connections').update({ credentials: { ...c.credentials, avatar: prof.avatar || c.credentials?.avatar, displayName: prof.displayName || c.credentials?.displayName, profileAt: new Date().toISOString(), profileCache: { at: new Date().toISOString(), data: prof } } }).eq('id', c.id)
+      return prof
     } catch (e: any) {
+      if (cached?.data) return { ...cached.data, error: undefined } as Profile
       return { platform: c.platform, handle: c.handle, url: '', posts: [], error: String(e?.message || e) } as Profile
     }
   }))

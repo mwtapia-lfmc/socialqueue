@@ -32,6 +32,13 @@ export default function Calendar({ items, onSelect }: Props) {
         <button onClick={() => setCursor(new Date(y, m + 1, 1))} className="sq-tool h-9 w-9 rounded-full text-lg">›</button>
       </div>
 
+      <div className="flex gap-3 text-[11px] text-gray-500 mb-3 flex-wrap">
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-blue-200" />Scheduled</span>
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-purple-200" />Blog</span>
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-emerald-200" />Published</span>
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-red-200" />Failed</span>
+      </div>
+
       <div className="grid grid-cols-7 gap-1.5 mb-1.5">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
           <div key={d} className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wide py-1">{d}</div>
@@ -48,8 +55,10 @@ export default function Calendar({ items, onSelect }: Props) {
               <div className={`text-xs font-semibold mb-1 ${isToday ? 'text-indigo-700' : 'text-gray-600'}`}>{day}</div>
               <div className="space-y-1">
                 {dayItems.slice(0, 3).map((it) => (
-                  <button key={it.id} onClick={() => onSelect(it)} title={it.title || it.content}
-                    className={`w-full text-left text-[11px] leading-tight px-1.5 py-1 rounded-md truncate transition hover:scale-[1.02] ${it.kind === 'blog' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                  <button key={it.id} onClick={() => onSelect(it)} title={`${it.status === 'published' ? 'Published' : it.status === 'failed' ? 'Failed' : 'Scheduled'}: ${it.title || it.content}`}
+                    className={`w-full text-left text-[11px] leading-tight px-1.5 py-1 rounded-md truncate transition hover:scale-[1.02] ${
+                      it.status === 'published' ? 'bg-emerald-100 text-emerald-800' : it.status === 'failed' ? 'bg-red-100 text-red-800' : it.kind === 'blog' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                    {it.status === 'published' ? '✓ ' : it.status === 'failed' ? '✗ ' : ''}
                     <span className="font-medium">{formatTime(it.schedule_time)}</span>{' '}
                     {it.kind === 'blog' ? '📝' : (Object.keys(it.platforms) as Platform[]).filter((p) => it.platforms[p]).map((p) => PLATFORM_META[p].icon).join('')}
                     {' '}{it.title || it.content.slice(0, 30)}

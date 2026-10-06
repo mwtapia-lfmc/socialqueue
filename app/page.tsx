@@ -9,6 +9,7 @@ import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
 import Profiles from './components/Profiles'
+import type { Profile } from './api/profiles/route'
 import Dashboard from './components/Dashboard'
 
 type View = 'home' | 'compose' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts'
@@ -18,19 +19,39 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<Item[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
+  const [profiles, setProfiles] = useState<Profile[] | null>(null)
+  const [profilesLoading, setProfilesLoading] = useState(false)
   const [view, setView] = useState<View>('home')
   const [editing, setEditing] = useState<Item | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
 
+  const cacheGet = <T,>(k: string): T | null => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null } catch { return null } }
+  const cacheSet = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
+
+  const hydrate = useCallback((userId: string) => {
+    const i = cacheGet<Item[]>(`sq:${userId}:items`); if (i) setItems(i)
+    const c = cacheGet<Connection[]>(`sq:${userId}:connections`); if (c) setConnections(c)
+    const p = cacheGet<Profile[]>(`sq:${userId}:profiles`); if (p) setProfiles(p)
+  }, [])
+
   const loadItems = useCallback(async (userId: string) => {
     const { data, error } = await supabase.from('items').select('*').eq('user_id', userId).order('updated_at', { ascending: false })
     if (error) { console.error('Load failed:', error); return }
-    setItems((data || []) as Item[])
+    setItems((data || []) as Item[]); cacheSet(`sq:${userId}:items`, data || [])
   }, [])
 
-  const loadConnections = useCallback(async () => {
+  const loadConnections = useCallback(async (userId?: string) => {
     const r = await authedFetch('/api/connections')
-    if (r.ok) setConnections((await r.json()).connections || [])
+    if (!r.ok) return
+    const list = (await r.json()).connections || []
+    setConnections(list); if (userId) cacheSet(`sq:${userId}:connections`, list)
+  }, [])
+
+  const loadProfiles = useCallback(async (userId: string, fresh = false) => {
+    setProfilesLoading(true)
+    const r = await authedFetch(`/api/profiles${fresh ? '?fresh=1' : ''}`)
+    if (r.ok) { const list = (await r.json()).profiles || []; setProfiles(list); cacheSet(`sq:${userId}:profiles`, list) }
+    setProfilesLoading(false)
   }, [])
 
   useEffect(() => {
@@ -41,18 +62,21 @@ export default function Home() {
     if (connectErr) { setView('accounts'); setTimeout(() => alert('Could not connect: ' + decodeURIComponent(connectErr.replace(/\+/g, ' '))), 50) }
     if (params.get('connected')) setView('accounts')
     if (desc || connectErr || params.get('connected')) window.history.replaceState({}, '', window.location.pathname)
+    const boot = (u: any) => { hydrate(u.id); loadItems(u.id); loadConnections(u.id); loadProfiles(u.id) }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
-      if (session?.user) { loadItems(session.user.id); loadConnections() }
+      if (session?.user) boot(session.user)
       setLoading(false)
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) { loadItems(session.user.id); loadConnections() }
-      else { setItems([]); setConnections([]) }
+      setUser((prev: any) => {
+        if (session?.user && prev?.id !== session.user.id) boot(session.user)
+        return session?.user ?? null
+      })
+      if (!session?.user) { setItems([]); setConnections([]); setProfiles(null) }
     })
     return () => sub.subscription.unsubscribe()
-  }, [loadItems, loadConnections])
+  }, [hydrate, loadItems, loadConnections, loadProfiles])
 
   const signIn = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
   const signOut = () => supabase.auth.signOut()
@@ -77,7 +101,7 @@ export default function Home() {
     const r = await authedFetch('/api/publish', { method: 'POST', body: JSON.stringify({ id: item.id }) })
     const data = await r.json()
     if (!r.ok) alert(data.error || 'Publish failed')
-    await loadItems(user.id)
+    await loadItems(user.id); loadProfiles(user.id, true)
   }
 
   const accounts = Object.fromEntries(connections.map((c) => [c.platform, { handle: c.handle, avatar: c.avatar, displayName: c.displayName }]))
@@ -125,7 +149,11 @@ export default function Home() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 pb-24 md:pb-8">
         {loading ? (
-          <div className="text-center py-24 text-gray-400 sq-pulse">Loading…</div>
+          <div className="space-y-5 sq-pulse" aria-busy="true">
+            <div className="h-8 w-64 rounded-lg bg-white/70" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[0, 1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-white/70" />)}</div>
+            <div className="grid lg:grid-cols-3 gap-5"><div className="lg:col-span-2 h-64 rounded-2xl bg-white/70" /><div className="h-64 rounded-2xl bg-white/70" /></div>
+          </div>
         ) : !user ? (
           <div className="text-center py-20 sq-fade-in">
             <h2 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-5">
@@ -183,10 +211,10 @@ export default function Home() {
               <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
             )}
             {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
-            {view === 'calendar' && <Calendar items={scheduled} onSelect={edit} />}
+            {view === 'calendar' && <Calendar items={items.filter((i) => i.schedule_date)} onSelect={edit} />}
             {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
-            {view === 'profiles' && <Profiles onRepurpose={repurpose} onConnect={() => setView('accounts')} />}
-            {view === 'accounts' && <Accounts connections={connections} onChange={loadConnections} />}
+            {view === 'profiles' && <Profiles profiles={profiles} loading={profilesLoading} onRefresh={() => loadProfiles(user.id, true)} onRepurpose={repurpose} onConnect={() => setView('accounts')} />}
+            {view === 'accounts' && <Accounts connections={connections} onChange={() => { loadConnections(user.id); loadProfiles(user.id, true) }} />}
           </>
         )}
       </div>
