@@ -48,11 +48,11 @@ async function threads(conn: any): Promise<Profile> {
 async function twitter(conn: any): Promise<Profile> {
   const tok = conn.credentials.accessToken
   const h = { Authorization: `Bearer ${tok}` }
-  const me = (await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url,name,username,description,public_metrics', { headers: h }).then((r) => r.json())).data
+  const me = (await fetch('https://api.x.com/2/users/me?user.fields=profile_image_url,name,username,description,public_metrics', { headers: h }).then((r) => r.json())).data
   if (!me) throw new Error('X session expired — reconnect in Accounts')
   let posts: ProfilePost[] = []
   try {
-    const tw = await fetch(`https://api.twitter.com/2/users/${me.id}/tweets?max_results=25&exclude=retweets,replies&tweet.fields=created_at,public_metrics,attachments&expansions=attachments.media_keys&media.fields=preview_image_url,url`, { headers: h }).then((r) => r.json())
+    const tw = await fetch(`https://api.x.com/2/users/${me.id}/tweets?max_results=25&exclude=retweets,replies&tweet.fields=created_at,public_metrics,attachments&expansions=attachments.media_keys&media.fields=preview_image_url,url`, { headers: h }).then((r) => r.json())
     const media = new Map((tw.includes?.media || []).map((m: any) => [m.media_key, m.url || m.preview_image_url]))
     posts = (tw.data || []).map((t: any) => ({ id: t.id, text: t.text, url: `https://x.com/${me.username}/status/${t.id}`, createdAt: t.created_at, image: media.get(t.attachments?.media_keys?.[0]) as string | undefined, likes: t.public_metrics?.like_count, replies: t.public_metrics?.reply_count, reposts: t.public_metrics?.retweet_count }))
   } catch {}

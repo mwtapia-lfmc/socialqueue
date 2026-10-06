@@ -6,11 +6,11 @@ export async function GET(request: Request) {
   if (!jwt) return Response.json({ error: 'Not signed in' }, { status: 401 })
   const { user } = await userFromJwt(request, jwt)
   if (!user) return Response.json({ error: 'Not signed in' }, { status: 401 })
-  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID)
+  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID || '').trim()
   if (!clientId || clientId.includes('YOUR_')) return Response.redirect(`${url.origin}/?connect_error=${encodeURIComponent('X client ID not configured on the server yet')}`, 302)
 
   const { verifier, challenge } = pkcePair()
-  const auth = new URL('https://twitter.com/i/oauth2/authorize')
+  const auth = new URL('https://x.com/i/oauth2/authorize')
   auth.searchParams.set('response_type', 'code')
   auth.searchParams.set('client_id', clientId)
   auth.searchParams.set('redirect_uri', `${url.origin}/api/auth/x/callback`)

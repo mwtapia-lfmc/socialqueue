@@ -10,8 +10,8 @@ export async function GET(request: Request) {
   const verifier = readCookie(request, 'sq_x_verifier'); if (!verifier) return fail(url.origin, 'Login took too long, try again')
   const { db, user } = await userFromJwt(request, st.jwt); if (!user) return fail(url.origin, 'Session expired, sign in again')
 
-  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID)!, secret = (process.env.X_CLIENT_SECRET || process.env.TWITTER_CLIENT_SECRET) || ''
-  const tokRes = await fetch('https://api.twitter.com/2/oauth2/token', {
+  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID || '').trim()!, secret = (process.env.X_CLIENT_SECRET || process.env.TWITTER_CLIENT_SECRET || '').trim() || ''
+  const tokRes = await fetch('https://api.x.com/2/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(secret ? { Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}` } : {}) },
     body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: `${url.origin}/api/auth/x/callback`, code_verifier: verifier, client_id: clientId }),
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const tok = await tokRes.json()
   if (!tok.access_token) return fail(url.origin, tok.error_description || tok.error || 'X token exchange failed')
 
-  const meRes = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url,name,username', { headers: { Authorization: `Bearer ${tok.access_token}` } })
+  const meRes = await fetch('https://api.x.com/2/users/me?user.fields=profile_image_url,name,username', { headers: { Authorization: `Bearer ${tok.access_token}` } })
   const me = (await meRes.json()).data
   if (!me?.id) return fail(url.origin, 'Could not read X profile')
 

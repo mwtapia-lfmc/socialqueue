@@ -90,8 +90,8 @@ async function publishToThreads(db: SupabaseClient, conn: any, text: string, ima
 async function xRefreshIfNeeded(db: SupabaseClient, conn: any): Promise<string> {
   const { accessToken, refreshToken, expiresAt } = conn.credentials
   if (!refreshToken || new Date(expiresAt).getTime() - Date.now() > 5 * 60_000) return accessToken
-  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID)!, secret = (process.env.X_CLIENT_SECRET || process.env.TWITTER_CLIENT_SECRET) || ''
-  const r = await fetch('https://api.twitter.com/2/oauth2/token', {
+  const clientId = (process.env.X_CLIENT_ID || process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID || '').trim()!, secret = (process.env.X_CLIENT_SECRET || process.env.TWITTER_CLIENT_SECRET || '').trim() || ''
+  const r = await fetch('https://api.x.com/2/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(secret ? { Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}` } : {}) },
     body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: clientId }),
@@ -119,7 +119,7 @@ async function publishToX(db: SupabaseClient, conn: any, text: string, imageUrls
   }
   const body: any = { text }
   if (mediaIds.length) body.media = { media_ids: mediaIds }
-  const r = await fetch('https://api.twitter.com/2/tweets', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const r = await fetch('https://api.x.com/2/tweets', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const j = await r.json()
   if (!j.data?.id) throw new Error(j.detail || j.title || j.errors?.[0]?.message || 'X rejected the post')
   return { ok: true, url: `https://x.com/${conn.handle}/status/${j.data.id}` }
