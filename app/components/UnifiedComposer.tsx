@@ -6,7 +6,7 @@ import { authedFetch } from '../lib/api'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
-import PlatformPreviews from './PlatformPreviews'
+import PlatformPreviews, { type Identity } from './PlatformPreviews'
 
 export interface Item {
   id: string
@@ -30,6 +30,7 @@ export interface Item {
 
 interface Props {
   userId: string
+  accounts?: Partial<Record<Platform, Identity>>
   item: Item | null
   onSaved: (item: Item) => void
   onScheduled: () => void
@@ -54,7 +55,7 @@ const empty = (): Omit<Item, 'id' | 'created_at' | 'updated_at'> => ({
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id ?? null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(), ...item } : empty()))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -399,6 +400,7 @@ export default function UnifiedComposer({ userId, item, onSaved, onScheduled }: 
             </div>
           ) : (
             <PlatformPreviews
+              accounts={accounts}
               selected={draft.platforms}
               onToggle={(p) => update({ platforms: { ...draft.platforms, [p]: !draft.platforms[p] } })}
               baseText={socialText}

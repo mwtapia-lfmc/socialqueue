@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 
+export interface Identity { handle: string; avatar?: string; displayName?: string }
+
 interface Props {
+  accounts: Partial<Record<Platform, Identity>>
   selected: Record<Platform, boolean>
   onToggle: (platform: Platform) => void
   baseText: string
@@ -21,7 +24,7 @@ const SKIN: Record<Platform, { name: string; handle: string; bg: string; text: s
 
 const ALL = Object.keys(PLATFORM_META) as Platform[]
 
-export default function PlatformPreviews({ selected, onToggle, baseText, overrides, image, onOverride }: Props) {
+export default function PlatformPreviews({ accounts, selected, onToggle, baseText, overrides, image, onOverride }: Props) {
   const [editing, setEditing] = useState<Platform | null>(null)
   const [buffer, setBuffer] = useState('')
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -39,6 +42,7 @@ export default function PlatformPreviews({ selected, onToggle, baseText, overrid
     <div className="space-y-4">
       {ALL.map((p) => {
         const on = !!selected[p]
+        const acct = accounts[p]
         const skin = SKIN[p]
         const meta = PLATFORM_META[p]
         const custom = p in overrides
@@ -63,8 +67,14 @@ export default function PlatformPreviews({ selected, onToggle, baseText, overrid
             </div>
             <div className="p-4">
               <div className="flex items-center gap-2 mb-2">
-                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shrink-0" />
-                <div className="leading-tight"><p className={`text-sm font-semibold ${skin.text}`}>{skin.name}</p><p className={`text-[11px] ${skin.sub}`}>{skin.handle}</p></div>
+                {acct?.avatar
+                  ? <img src={acct.avatar} alt="" className="h-9 w-9 rounded-full object-cover shrink-0 border border-gray-100" />
+                  : <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shrink-0" />}
+                <div className="leading-tight min-w-0">
+                  <p className={`text-sm font-semibold truncate ${skin.text}`}>{acct?.displayName || acct?.handle || skin.name}</p>
+                  <p className={`text-[11px] truncate ${skin.sub}`}>{acct ? `@${acct.handle} · now` : skin.handle}</p>
+                </div>
+                {!acct && <span className="ml-auto text-[10px] text-gray-400 shrink-0">not connected</span>}
               </div>
               {isEditing ? (
                 <>

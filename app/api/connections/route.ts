@@ -1,11 +1,41 @@
 import { AtpAgent } from '@atproto/api'
 import { userClient } from '../../lib/supabaseServer'
 
+async function fetchProfile(conn: any): Promise<{ avatar?: string; displayName?: string } | null> {
+  try {
+    if (conn.platform === 'bluesky') {
+      const r = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(conn.handle)}`)
+      const j = await r.json()
+      return { avatar: j.avatar, displayName: j.displayName }
+    }
+    if (conn.platform === 'threads') {
+      const r = await fetch(`https://graph.threads.net/v1.0/me?fields=username,name,threads_profile_picture_url&access_token=${encodeURIComponent(conn.credentials.accessToken)}`)
+      const j = await r.json()
+      return { avatar: j.threads_profile_picture_url, displayName: j.name || j.username }
+    }
+  } catch {}
+  return null
+}
+
 export async function GET(request: Request) {
   const db = userClient(request)
-  const { data, error } = await db.from('connections').select('id, platform, handle, account_id, created_at')
+  const { data, error } = await db.from('connections').select('id, platform, handle, account_id, credentials, created_at')
   if (error) return Response.json({ error: error.message }, { status: 401 })
-  return Response.json({ connections: data })
+
+  const out = []
+  for (const c of data || []) {
+    let { avatar, displayName, profileAt } = c.credentials || {}
+    const stale = !profileAt || Date.now() - new Date(profileAt).getTime() > 86400_000
+    if (stale) {
+      const p = await fetchProfile(c)
+      if (p) {
+        avatar = p.avatar; displayName = p.displayName
+        await db.from('connections').update({ credentials: { ...c.credentials, avatar, displayName, profileAt: new Date().toISOString() } }).eq('id', c.id)
+      }
+    }
+    out.push({ id: c.id, platform: c.platform, handle: c.handle, account_id: c.account_id, created_at: c.created_at, avatar, displayName })
+  }
+  return Response.json({ connections: out })
 }
 
 export async function POST(request: Request) {

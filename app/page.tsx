@@ -78,6 +78,7 @@ export default function Home() {
     await loadItems(user.id)
   }
 
+  const accounts = Object.fromEntries(connections.map((c) => [c.platform, { handle: c.handle, avatar: c.avatar, displayName: c.displayName }]))
   const drafts = items.filter((i) => i.status === 'draft')
   const scheduled = items.filter((i) => i.status === 'scheduled')
   const queue = items.filter((i) => i.status !== 'draft')
@@ -146,7 +147,7 @@ export default function Home() {
             )}
 
             {view === 'compose' && (
-              <UnifiedComposer key={editing?.id ?? 'new'} userId={user.id} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
+              <UnifiedComposer key={editing?.id ?? 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
             )}
             {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
             {view === 'calendar' && <Calendar items={scheduled} onSelect={edit} />}

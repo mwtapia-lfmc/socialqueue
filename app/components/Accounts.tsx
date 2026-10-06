@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { authedFetch } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
-export interface Connection { id: string; platform: string; handle: string; account_id: string | null; created_at: string }
+export interface Connection { id: string; platform: string; handle: string; account_id: string | null; created_at: string; avatar?: string; displayName?: string }
 
 interface Props { connections: Connection[]; onChange: () => void }
 
