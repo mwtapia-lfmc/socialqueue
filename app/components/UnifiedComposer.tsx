@@ -430,7 +430,7 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
                 <div><p className="text-sm font-semibold leading-tight">You</p><p className="text-[11px] text-gray-400">Blog draft</p></div>
               </div>
               {draft.title && <h1 className="text-xl font-bold mb-2">{draft.title}</h1>}
-              {firstImage && <img src={firstImage} alt="" className="w-full rounded-xl mb-3 object-cover" style={{ aspectRatio: `${previewRatio.w} / ${previewRatio.h}` }} />}
+              {firstImage && <img src={firstImage} alt="" className="w-full rounded-xl mb-3 object-cover max-h-80" />}
               <div className="sq-preview text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: markdownToHtml(draft.content) || '<p class="text-gray-300">Your blog will render here…</p>' }} />
             </div>
           ) : (

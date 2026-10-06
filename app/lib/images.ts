@@ -1,8 +1,9 @@
 import { supabase } from './supabase'
 
-export type RatioKey = 'square' | 'landscape' | 'portrait'
+export type RatioKey = 'original' | 'square' | 'landscape' | 'portrait'
 
 export const RATIOS: Record<RatioKey, { label: string; w: number; h: number; maxWidth: number; hint: string; genSize: string }> = {
+  original: { label: 'Original', w: 0, h: 0, maxWidth: 1600, hint: 'No crop — keeps the whole image', genSize: '1024x1024' },
   landscape: { label: 'Landscape 16:9', w: 16, h: 9, maxWidth: 1600, hint: 'X, Bluesky, LinkedIn, blog', genSize: '1536x1024' },
   portrait: { label: 'Portrait 4:5', w: 4, h: 5, maxWidth: 1080, hint: 'Threads feed', genSize: '1024x1536' },
   square: { label: 'Square 1:1', w: 1, h: 1, maxWidth: 1080, hint: 'Works everywhere', genSize: '1024x1024' },
@@ -29,12 +30,14 @@ const loadImage = (src: string) =>
 export async function cropToRatio(src: string, ratio: RatioKey): Promise<Blob> {
   const { w, h, maxWidth } = RATIOS[ratio]
   const img = await loadImage(src)
-  const target = w / h
   const srcRatio = img.width / img.height
+  const target = ratio === 'original' ? srcRatio : w / h
 
   let sx = 0, sy = 0, sw = img.width, sh = img.height
-  if (srcRatio > target) { sw = Math.round(img.height * target); sx = Math.round((img.width - sw) / 2) }
-  else if (srcRatio < target) { sh = Math.round(img.width / target); sy = Math.round((img.height - sh) / 2) }
+  if (ratio !== 'original') {
+    if (srcRatio > target) { sw = Math.round(img.height * target); sx = Math.round((img.width - sw) / 2) }
+    else if (srcRatio < target) { sh = Math.round(img.width / target); sy = Math.round((img.height - sh) / 2) }
+  }
 
   const outW = Math.min(maxWidth, sw)
   const outH = Math.round(outW / target)

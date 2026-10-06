@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { RATIOS, PLATFORM_RATIO, cropToRatio, fileToDataUrl, uploadToStorage, type RatioKey } from '../lib/images'
 
 interface Props {
@@ -12,18 +12,13 @@ interface Props {
 }
 
 export default function ImageStudio({ userId, kind, platforms, images, onChange }: Props) {
-  const [ratio, setRatio] = useState<RatioKey>('landscape')
+  const [ratio, setRatio] = useState<RatioKey>('original')
   const [working, setWorking] = useState<string | null>(null)
   const [genPrompt, setGenPrompt] = useState('')
   const [editPrompt, setEditPrompt] = useState('')
   const [busy, setBusy] = useState<null | 'generate' | 'edit' | 'attach'>(null)
   const [note, setNote] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
-
-  useEffect(() => {
-    const first = kind === 'blog' ? 'blog' : Object.keys(platforms).find((p) => platforms[p])
-    if (first) setRatio(PLATFORM_RATIO[first])
-  }, [kind, platforms])
 
   const handleUpload = async (fileOrFiles?: File | FileList | File[] | null) => {
     const files = !fileOrFiles ? [] : fileOrFiles instanceof File ? [fileOrFiles] : Array.from(fileOrFiles)
@@ -39,7 +34,7 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
         added.push(await uploadToStorage(blob, userId))
       }
       onChange([...images, ...added])
-      setNote(`${added.length > 1 ? `${added.length} images attached` : 'Attached'}, cropped to ${RATIOS[ratio].label}. Amend below or re-crop to a different format.`)
+      setNote(`${added.length > 1 ? `${added.length} images attached` : 'Attached'}${ratio === 'original' ? ' at original size' : `, cropped to ${RATIOS[ratio].label}`}. Pick a format above if you want it cropped for a specific platform.`)
     } catch (e) {
       const msg = (e as Error).message || String(e)
       setNote(null)
@@ -111,7 +106,7 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) }}
       onDrop={(e) => { e.preventDefault(); setDragOver(false); handleUpload(e.dataTransfer.files) }}
       onPaste={(e) => { const f = Array.from(e.clipboardData.files || []); if (f.length) { e.preventDefault(); handleUpload(f) } }}>
-      {dragOver && <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-indigo-400 bg-white/70 pointer-events-none"><span className="text-sm font-semibold text-indigo-700">Drop to attach (crops to {RATIOS[ratio].label})</span></div>}
+      {dragOver && <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-indigo-400 bg-white/70 pointer-events-none"><span className="text-sm font-semibold text-indigo-700">Drop to attach{ratio === 'original' ? '' : ` (crops to ${RATIOS[ratio].label})`}</span></div>}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-gray-700">Format</span>
         {(Object.keys(RATIOS) as RatioKey[]).map((k) => (
@@ -179,23 +174,23 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
         <div>
           <div
             className="relative w-full rounded-xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-200 flex items-center justify-center"
-            style={{ aspectRatio: `${r.w} / ${r.h}`, maxHeight: 260 }}
+            style={ratio === 'original' ? { minHeight: 120, maxHeight: 260 } : { aspectRatio: `${r.w} / ${r.h}`, maxHeight: 260 }}
           >
             {working ? (
-              <img src={working} alt="Working" className="w-full h-full object-cover" />
+              <img src={working} alt="Working" className={ratio === 'original' ? 'max-w-full max-h-[260px] object-contain' : 'w-full h-full object-cover'} />
             ) : (
               <span className="text-xs text-gray-400">{r.label} preview</span>
             )}
             {working && (
               <span className="absolute top-2 left-2 text-[10px] bg-black/60 text-white px-2 py-0.5 rounded-full">
-                will crop to {r.w}:{r.h}
+                {ratio === 'original' ? 'no crop' : `will crop to ${r.w}:${r.h}`}
               </span>
             )}
           </div>
           {working && (
             <div className="flex gap-2 mt-2">
               <button type="button" onClick={handleAttach} disabled={busy !== null} className="sq-btn-primary flex-1 py-2 rounded-lg text-sm font-medium">
-                {busy === 'attach' ? <span className="sq-pulse">Cropping…</span> : `Crop to ${r.w}:${r.h} & attach`}
+                {busy === 'attach' ? <span className="sq-pulse">Saving…</span> : ratio === 'original' ? 'Attach as is' : `Crop to ${r.w}:${r.h} & attach`}
               </button>
               <button type="button" onClick={() => setWorking(null)} className="px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">
                 Discard

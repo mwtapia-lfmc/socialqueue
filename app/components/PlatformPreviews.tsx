@@ -95,7 +95,7 @@ export default function PlatformPreviews({ accounts, selected, onToggle, baseTex
                   {text || <span className="text-gray-300">Your post will appear here…</span>}
                 </button>
               )}
-              {image && <img src={image} alt="" className="w-full rounded-xl mt-3 object-cover border border-gray-100" style={{ aspectRatio: `${r.w} / ${r.h}` }} />}
+              {image && <img src={image} alt="" className="w-full rounded-xl mt-3 object-cover border border-gray-100 max-h-80" />}
               <div className={`flex gap-6 mt-3 text-sm ${skin.sub}`}>{skin.actions.map((a, i) => <span key={i}>{a}</span>)}</div>
             </div>
           </div>
