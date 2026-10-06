@@ -18,7 +18,7 @@ const dayLabel = (key: string) => {
 
 export default function Profiles({ onRepurpose, onConnect }: Props) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null)
-  const [mode, setMode] = useState<'columns' | 'timeline'>('timeline')
+  const [mode, setMode] = useState<'columns' | 'timeline'>('columns')
 
   useEffect(() => {
     authedFetch('/api/profiles').then((r) => r.json()).then((d) => setProfiles(d.profiles || []))
