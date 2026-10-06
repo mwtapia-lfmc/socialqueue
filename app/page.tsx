@@ -123,7 +123,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 pb-24 md:pb-8">
         {loading ? (
           <div className="text-center py-24 text-gray-400 sq-pulse">Loading…</div>
         ) : !user ? (
@@ -144,7 +144,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <div className="flex gap-2 mb-6 flex-wrap">
+            <div className="hidden md:flex gap-2 mb-6 flex-wrap">
               {tabs.map((t) => (
                 <button key={t.key} onClick={() => { setView(t.key); if (t.key !== 'compose') setEditing(null) }}
                   className={`sq-tab px-4 py-2 rounded-full text-sm font-medium ${view === t.key ? 'sq-tab-active' : 'bg-white/80 text-gray-700 border border-gray-200 hover:border-indigo-300'}`}>
@@ -152,6 +152,23 @@ export default function Home() {
                 </button>
               ))}
             </div>
+
+            <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+              <div className="grid grid-cols-7">
+                {tabs.map((t) => {
+                  const [icon, ...rest] = t.label.split(' ')
+                  const active = view === t.key
+                  return (
+                    <button key={t.key} onClick={() => { setView(t.key); if (t.key !== 'compose') setEditing(null); window.scrollTo({ top: 0 }) }}
+                      className={`relative flex flex-col items-center gap-0.5 py-2 text-[10px] ${active ? 'text-indigo-600 font-semibold' : 'text-gray-500'}`}>
+                      <span className="text-lg leading-none">{icon}</span>
+                      <span className="truncate max-w-full px-0.5">{rest.join(' ')}</span>
+                      {t.count ? <span className="absolute top-1 right-1/2 translate-x-4 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] flex items-center justify-center">{t.count}</span> : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </nav>
 
             {connections.length === 0 && (view === 'compose' || view === 'home') && (
               <button onClick={() => setView('accounts')} className="w-full mb-5 text-left sq-card p-4 flex items-center gap-3 border-amber-200 bg-amber-50/70 hover:bg-amber-50 sq-fade-in">
