@@ -102,7 +102,9 @@ export default function Home() {
       <div className="sq-bg" />
       <header className="sticky top-0 z-20 backdrop-blur-md bg-white/60 border-b border-white/60">
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-4">
-          <h1 className="text-2xl font-extrabold tracking-tight"><span className="sq-gradient-text">SocialQueue</span></h1>
+          <button onClick={() => { setView('compose'); setEditing(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className="text-2xl font-extrabold tracking-tight hover:opacity-80 transition" aria-label="Home">
+            <span className="sq-gradient-text">SocialQueue</span>
+          </button>
           {user ? (
             <div className="flex items-center gap-3">
               <span className="hidden sm:block text-sm text-gray-600">{user.email}</span>
