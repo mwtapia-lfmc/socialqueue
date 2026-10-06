@@ -393,10 +393,13 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
           )}
 
           {draft.kind === 'post' && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-gray-400 mr-1">Publishing to <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 align-middle mx-0.5" /> =</span>
               {PLATFORMS.map((p) => (
                 <button key={p} type="button" onClick={() => update({ platforms: { ...draft.platforms, [p]: !draft.platforms[p] } })}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${draft.platforms[p] ? PLATFORM_META[p].color + ' border-transparent shadow-sm' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'}`}>
+                  title={draft.platforms[p] ? `Will publish to ${PLATFORM_META[p].label}` : `Not publishing to ${PLATFORM_META[p].label} — click to turn on`}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition ${draft.platforms[p] ? PLATFORM_META[p].color + ' border-transparent shadow-sm' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'}`}>
+                  <span className={`h-2.5 w-2.5 rounded-full ring-2 ${draft.platforms[p] ? 'bg-emerald-400 ring-emerald-400/40 shadow-[0_0_8px_rgba(52,211,153,0.9)]' : 'bg-gray-300 ring-transparent'}`} aria-hidden />
                   {PLATFORM_META[p].icon} {PLATFORM_META[p].label}
                 </button>
               ))}

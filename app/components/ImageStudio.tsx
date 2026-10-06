@@ -18,22 +18,28 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
   const [editPrompt, setEditPrompt] = useState('')
   const [busy, setBusy] = useState<null | 'generate' | 'edit' | 'attach'>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
 
   useEffect(() => {
     const first = kind === 'blog' ? 'blog' : Object.keys(platforms).find((p) => platforms[p])
     if (first) setRatio(PLATFORM_RATIO[first])
   }, [kind, platforms])
 
-  const handleUpload = async (file?: File) => {
-    if (!file) return
+  const handleUpload = async (fileOrFiles?: File | FileList | File[] | null) => {
+    const files = !fileOrFiles ? [] : fileOrFiles instanceof File ? [fileOrFiles] : Array.from(fileOrFiles)
+    const imgs = files.filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name)).slice(0, 4 - images.length)
+    if (!imgs.length) { if (files.length) alert(images.length >= 4 ? 'Max 4 images per post.' : 'That file is not an image.'); return }
     setNote(null); setBusy('attach')
     try {
-      const dataUrl = await fileToDataUrl(file)
-      setWorking(dataUrl)
-      const blob = await cropToRatio(dataUrl, ratio)
-      const url = await uploadToStorage(blob, userId)
-      onChange([...images, url])
-      setNote(`Attached, cropped to ${RATIOS[ratio].label}. Amend it below or re-crop to a different format.`)
+      const added: string[] = []
+      for (const file of imgs) {
+        const dataUrl = await fileToDataUrl(file)
+        setWorking(dataUrl)
+        const blob = await cropToRatio(dataUrl, ratio)
+        added.push(await uploadToStorage(blob, userId))
+      }
+      onChange([...images, ...added])
+      setNote(`${added.length > 1 ? `${added.length} images attached` : 'Attached'}, cropped to ${RATIOS[ratio].label}. Amend below or re-crop to a different format.`)
     } catch (e) {
       const msg = (e as Error).message || String(e)
       setNote(null)
@@ -100,7 +106,12 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
   const r = RATIOS[ratio]
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 relative rounded-xl transition ${dragOver ? 'ring-2 ring-indigo-400 bg-indigo-50/40' : ''}`}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragOver(true) } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) }}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); handleUpload(e.dataTransfer.files) }}
+      onPaste={(e) => { const f = Array.from(e.clipboardData.files || []); if (f.length) { e.preventDefault(); handleUpload(f) } }}>
+      {dragOver && <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-indigo-400 bg-white/70 pointer-events-none"><span className="text-sm font-semibold text-indigo-700">Drop to attach (crops to {RATIOS[ratio].label})</span></div>}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-gray-700">Format</span>
         {(Object.keys(RATIOS) as RatioKey[]).map((k) => (
@@ -121,15 +132,13 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-3">
-          <label className="block">
+          <label className="block cursor-pointer">
             <span className="text-xs font-medium text-gray-600">Upload {busy === 'attach' && <span className="sq-pulse text-indigo-600">· saving…</span>}</span>
-            <input
-              type="file"
-              accept="image/*"
-              disabled={busy !== null}
-              onChange={(e) => { handleUpload(e.target.files?.[0]); e.target.value = '' }}
-              className="mt-1 block w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:bg-indigo-50 file:text-indigo-700 file:text-xs file:font-semibold hover:file:bg-indigo-100"
-            />
+            <div className="mt-1 rounded-xl border-2 border-dashed border-gray-300 hover:border-indigo-400 bg-white/60 px-3 py-4 text-center transition">
+              <p className="text-sm text-gray-700"><span className="font-semibold text-indigo-700">Choose images</span> or drag &amp; drop here</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Up to 4 · also works with ⌘V paste</p>
+            </div>
+            <input type="file" accept="image/*" multiple disabled={busy !== null} onChange={(e) => { handleUpload(e.target.files); e.target.value = '' }} className="sr-only" />
           </label>
 
           <div>
