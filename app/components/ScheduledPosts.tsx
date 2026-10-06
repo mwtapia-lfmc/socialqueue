@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { authedFetch } from '../lib/api'
 import { PLATFORM_META, formatTime, parseYmd, type Platform } from '../lib/text'
 import type { Item } from './UnifiedComposer'
 
@@ -16,6 +17,10 @@ const platformsOf = (it: Item) => (Object.keys(it.platforms) as Platform[]).filt
 
 export default function ScheduledPosts({ items, onEdit, onUnschedule, onDelete, onPublishNow }: Props) {
   const [publishing, setPublishing] = useState<string | null>(null)
+  const [sched, setSched] = useState<{ configured: boolean; missing: string[] } | null>(null)
+  useEffect(() => { authedFetch('/api/scheduler-status').then((r) => r.ok ? r.json() : null).then(setSched).catch(() => {}) }, [])
+  const now = new Date()
+  const overdue = items.filter((i) => i.status === 'scheduled' && i.schedule_date && new Date(`${i.schedule_date}T${(i.schedule_time || '00:00').slice(0, 5)}:00`).getTime() < now.getTime() - 3 * 60_000)
   const byTime = (a: Item, b: Item) => `${a.schedule_date}${a.schedule_time}`.localeCompare(`${b.schedule_date}${b.schedule_time}`)
   const scheduled = items.filter((i) => i.status === 'scheduled').sort(byTime)
   const failed = items.filter((i) => i.status === 'failed').sort(byTime)
@@ -83,7 +88,19 @@ export default function ScheduledPosts({ items, onEdit, onUnschedule, onDelete, 
   return (
     <div className="space-y-6 sq-fade-in">
       {failed.length > 0 && <section className="space-y-3"><h3 className="text-sm font-semibold text-red-700">Needs attention</h3>{failed.map((it) => <Card key={it.id} it={it} tone="red" />)}</section>}
-      <section className="space-y-3"><h3 className="text-sm font-semibold text-gray-700">Scheduled · publishes automatically</h3>
+      {sched && !sched.configured && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 space-y-1">
+          <p className="font-semibold">⚠ Auto-publish is OFF. Scheduled posts will sit here until you press Publish now.</p>
+          <p className="text-xs">The scheduler pings every minute but Vercel is missing: <code className="bg-white/70 px-1 rounded">{sched.missing.join('</code>, <code>')}</code>. Add them in Vercel → Settings → Environment Variables, redeploy, and this banner disappears.</p>
+        </div>
+      )}
+      {sched?.configured && overdue.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <p className="font-semibold">{overdue.length} post{overdue.length > 1 ? 's are' : ' is'} past due and still waiting.</p>
+          <p className="text-xs">The scheduler is configured but hasn't picked these up — check that the Supabase cron job is enabled, or press Publish now.</p>
+        </div>
+      )}
+      <section className="space-y-3"><h3 className="text-sm font-semibold text-gray-700">Scheduled · {sched == null ? '…' : sched.configured ? 'publishes automatically at the set time' : 'manual — auto-publish not set up yet'}</h3>
         {scheduled.length ? scheduled.map((it) => <Card key={it.id} it={it} tone="blue" />) : <p className="text-sm text-gray-400">Nothing waiting.</p>}</section>
       {published.length > 0 && <section className="space-y-3"><h3 className="text-sm font-semibold text-emerald-700">Published</h3>{published.map((it) => <Card key={it.id} it={it} tone="green" />)}</section>}
     </div>
