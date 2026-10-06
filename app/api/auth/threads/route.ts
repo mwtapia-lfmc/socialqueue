@@ -1,4 +1,5 @@
 import { userClient } from '../../../lib/supabaseServer'
+import { beginOAuth } from '../../../lib/oauth'
 
 // Starts the Threads OAuth dance. Carries the user's Supabase JWT in `state`
 // so the callback (a plain browser redirect, no auth header) can save the
@@ -13,12 +14,10 @@ export async function GET(request: Request) {
 
   const appId = process.env.NEXT_PUBLIC_THREADS_APP_ID
   const redirect = `${url.origin}/api/auth/threads/callback`
-  const state = Buffer.from(JSON.stringify({ jwt, t: Date.now() })).toString('base64url')
   const auth = new URL('https://threads.net/oauth/authorize')
   auth.searchParams.set('client_id', appId!)
   auth.searchParams.set('redirect_uri', redirect)
   auth.searchParams.set('scope', 'threads_basic,threads_content_publish')
   auth.searchParams.set('response_type', 'code')
-  auth.searchParams.set('state', state)
-  return Response.redirect(auth.toString(), 302)
+  return beginOAuth(auth.toString(), jwt)
 }

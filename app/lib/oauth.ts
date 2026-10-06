@@ -19,3 +19,28 @@ export function readCookie(request: Request, name: string) {
   const m = (request.headers.get('cookie') || '').match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`))
   return m ? decodeURIComponent(m[1]) : null
 }
+
+// Keep the user's JWT in an httpOnly cookie during the OAuth round-trip (providers cap `state` size)
+export function beginOAuth(location: string, jwt: string, extra: Record<string, string> = {}) {
+  const nonce = b64url(randomBytes(16))
+  const cookies = [`sq_oauth_jwt=${encodeURIComponent(jwt)}`, `sq_oauth_state=${nonce}`, ...Object.entries(extra).map(([k, v]) => `${k}=${v}`)]
+    .map((c) => `${c}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`)
+  const url = new URL(location); url.searchParams.set('state', nonce)
+  const headers = new Headers({ Location: url.toString() })
+  cookies.forEach((c) => headers.append('Set-Cookie', c))
+  return new Response(null, { status: 302, headers })
+}
+
+export function finishOAuth(request: Request, state: string | null) {
+  const jwt = readCookie(request, 'sq_oauth_jwt'); const expected = readCookie(request, 'sq_oauth_state')
+  if (!jwt || !expected || state !== expected) return null
+  return jwt
+}
+
+export const clearOAuthCookies = ['sq_oauth_jwt', 'sq_oauth_state', 'sq_x_verifier'].map((n) => `${n}=; Path=/; Max-Age=0`)
+
+export function redirectClearing(location: string) {
+  const headers = new Headers({ Location: location })
+  clearOAuthCookies.forEach((c) => headers.append('Set-Cookie', c))
+  return new Response(null, { status: 302, headers })
+}

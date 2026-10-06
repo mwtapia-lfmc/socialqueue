@@ -1,4 +1,5 @@
 import { userClient } from '../../../../lib/supabaseServer'
+import { finishOAuth, redirectClearing } from '../../../../lib/oauth'
 
 const back = (origin: string, q: string) => Response.redirect(`${origin}/?${q}`, 302)
 
@@ -10,8 +11,8 @@ export async function GET(request: Request) {
   if (err) return back(url.origin, `connect_error=${encodeURIComponent(err)}`)
   if (!code || !state) return back(url.origin, 'connect_error=Missing+code')
 
-  let jwt = ''
-  try { jwt = JSON.parse(Buffer.from(state, 'base64url').toString()).jwt } catch { return back(url.origin, 'connect_error=Bad+state') }
+  const jwt = finishOAuth(request, state)
+  if (!jwt) return back(url.origin, 'connect_error=Login+session+expired+%E2%80%94+try+Connect+again')
   const db = userClient(new Request(request.url, { headers: { authorization: `Bearer ${jwt}` } }))
   const { data: { user } } = await db.auth.getUser()
   if (!user) return back(url.origin, 'connect_error=Session+expired%2C+sign+in+again')
@@ -45,5 +46,5 @@ export async function GET(request: Request) {
     { onConflict: 'user_id,platform' }
   )
   if (error) return back(url.origin, `connect_error=${encodeURIComponent(error.message)}`)
-  return back(url.origin, `connected=threads&view=accounts`)
+  return redirectClearing(`${url.origin}/?connected=threads`)
 }

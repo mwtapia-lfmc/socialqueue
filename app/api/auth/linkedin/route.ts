@@ -1,4 +1,4 @@
-import { encodeState, userFromJwt } from '../../../lib/oauth'
+import { beginOAuth, userFromJwt } from '../../../lib/oauth'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -14,6 +14,5 @@ export async function GET(request: Request) {
   auth.searchParams.set('client_id', clientId)
   auth.searchParams.set('redirect_uri', `${url.origin}/api/auth/linkedin/callback`)
   auth.searchParams.set('scope', 'openid profile w_member_social')
-  auth.searchParams.set('state', encodeState({ jwt }))
-  return Response.redirect(auth.toString(), 302)
+  return beginOAuth(auth.toString(), jwt)
 }

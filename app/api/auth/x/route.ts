@@ -1,4 +1,4 @@
-import { encodeState, pkcePair, userFromJwt } from '../../../lib/oauth'
+import { beginOAuth, pkcePair, userFromJwt } from '../../../lib/oauth'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -15,11 +15,7 @@ export async function GET(request: Request) {
   auth.searchParams.set('client_id', clientId)
   auth.searchParams.set('redirect_uri', `${url.origin}/api/auth/x/callback`)
   auth.searchParams.set('scope', 'tweet.read tweet.write users.read offline.access')
-  auth.searchParams.set('state', encodeState({ jwt }))
   auth.searchParams.set('code_challenge', challenge)
   auth.searchParams.set('code_challenge_method', 'S256')
-  return new Response(null, {
-    status: 302,
-    headers: { Location: auth.toString(), 'Set-Cookie': `sq_x_verifier=${verifier}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600` },
-  })
+  return beginOAuth(auth.toString(), jwt, { sq_x_verifier: verifier })
 }
