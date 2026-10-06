@@ -12,8 +12,9 @@ import Profiles from './components/Profiles'
 import type { Profile } from './api/profiles/route'
 import Dashboard from './components/Dashboard'
 import BatchComposer from './components/BatchComposer'
+import Trends from './components/Trends'
 
-type View = 'home' | 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts'
+type View = 'home' | 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -130,6 +131,7 @@ export default function Home() {
     { key: 'calendar', label: '📅 Calendar' },
     { key: 'queue', label: '🚀 Queue', count: scheduled.length },
     { key: 'profiles', label: '👤 Profiles' },
+    { key: 'trends', label: '📈 Trends' },
     { key: 'accounts', label: '🔗 Accounts', count: connections.length },
   ]
 
@@ -249,6 +251,7 @@ export default function Home() {
                   onCreate={(date, time) => { setEditing({ id: '', kind: 'post', title: null, content: '', tone: 'casual', platforms: Object.fromEntries(['threads', 'twitter', 'bluesky', 'linkedin'].map((p) => [p, !!connections.find((c) => c.platform === p)])), hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: date, schedule_time: time, created_at: '', updated_at: '' } as unknown as Item); setView('compose') }} />}
                 {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
                 {view === 'profiles' && <Profiles profiles={profiles} loading={profilesLoading} onRefresh={() => loadProfiles(user.id, true)} onRepurpose={repurpose} onConnect={() => go('accounts')} />}
+                {view === 'trends' && <Trends profiles={profiles} onWrite={(text) => quickPost(text)} />}
                 {view === 'accounts' && <Accounts connections={connections} onChange={() => { loadConnections(user.id); loadProfiles(user.id, true) }} />}
               </>
             )}
