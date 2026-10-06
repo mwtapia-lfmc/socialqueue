@@ -9,15 +9,16 @@ import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
 import Profiles from './components/Profiles'
+import Dashboard from './components/Dashboard'
 
-type View = 'compose' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts'
+type View = 'home' | 'compose' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [items, setItems] = useState<Item[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
-  const [view, setView] = useState<View>('compose')
+  const [view, setView] = useState<View>('home')
   const [editing, setEditing] = useState<Item | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
 
@@ -84,11 +85,16 @@ export default function Home() {
     setEditing({ id: '', kind: 'post', title: null, content: text, tone: 'casual', platforms: { threads: platform === 'threads', twitter: false, bluesky: platform === 'bluesky' }, hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '' } as unknown as Item)
     setView('compose')
   }
+  const quickPost = (text: string) => {
+    setEditing({ id: '', kind: 'post', title: null, content: text, tone: 'casual', platforms: { threads: !!connections.find((c) => c.platform === 'threads'), twitter: false, bluesky: !!connections.find((c) => c.platform === 'bluesky') }, hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '' } as unknown as Item)
+    setView('compose')
+  }
   const drafts = items.filter((i) => i.status === 'draft')
   const scheduled = items.filter((i) => i.status === 'scheduled')
   const queue = items.filter((i) => i.status !== 'draft')
 
   const tabs: { key: View; label: string; count?: number }[] = [
+    { key: 'home', label: '🏠 Home' },
     { key: 'compose', label: '✍️ Compose' },
     { key: 'drafts', label: '📝 Drafts', count: drafts.length },
     { key: 'calendar', label: '📅 Calendar' },
@@ -102,7 +108,7 @@ export default function Home() {
       <div className="sq-bg" />
       <header className="sticky top-0 z-20 backdrop-blur-md bg-white/60 border-b border-white/60">
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-4">
-          <button onClick={() => { setView('compose'); setEditing(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className="text-2xl font-extrabold tracking-tight hover:opacity-80 transition" aria-label="Home">
+          <button onClick={() => { setView('home'); setEditing(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className="text-2xl font-extrabold tracking-tight hover:opacity-80 transition" aria-label="Home">
             <span className="sq-gradient-text">SocialQueue</span>
             <span className="ml-2 align-middle text-[11px] font-medium text-gray-400 tracking-normal">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
           </button>
@@ -147,7 +153,7 @@ export default function Home() {
               ))}
             </div>
 
-            {connections.length === 0 && view === 'compose' && (
+            {connections.length === 0 && (view === 'compose' || view === 'home') && (
               <button onClick={() => setView('accounts')} className="w-full mb-5 text-left sq-card p-4 flex items-center gap-3 border-amber-200 bg-amber-50/70 hover:bg-amber-50 sq-fade-in">
                 <span className="text-xl">🔗</span>
                 <span className="text-sm text-amber-900"><strong>No accounts connected.</strong> Scheduled posts won't publish anywhere yet — connect Bluesky to start.</span>
@@ -155,6 +161,7 @@ export default function Home() {
               </button>
             )}
 
+            {view === 'home' && <Dashboard user={user} items={items} connections={connections} onGo={(v) => setView(v)} onEdit={edit} onQuickPost={quickPost} />}
             {view === 'compose' && (
               <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
             )}
