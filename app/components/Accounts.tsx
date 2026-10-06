@@ -13,8 +13,20 @@ export default function Accounts({ connections, onChange }: Props) {
   const [appPassword, setAppPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [thToken, setThToken] = useState('')
+  const [thBusy, setThBusy] = useState(false)
+  const [thErr, setThErr] = useState<string | null>(null)
   const bluesky = connections.find((c) => c.platform === 'bluesky')
   const threads = connections.find((c) => c.platform === 'threads')
+
+  const connectThreadsToken = async () => {
+    setThBusy(true); setThErr(null)
+    const r = await authedFetch('/api/connections', { method: 'POST', body: JSON.stringify({ platform: 'threads', accessToken: thToken }) })
+    const data = await r.json()
+    setThBusy(false)
+    if (!r.ok) { setThErr(data.error); return }
+    setThToken(''); onChange()
+  }
 
   const connectThreads = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -76,8 +88,15 @@ export default function Accounts({ connections, onChange }: Props) {
           </>
         ) : (
           <>
-            <p className="text-xs text-gray-500">Logs you into Threads and asks permission to post. Your account must be listed as a Threads Tester on the Meta app while it is in development mode.</p>
+            <p className="text-xs text-gray-500">Logs you into Threads and asks permission to post. Your account must be a Threads Tester on the Meta app.</p>
             <button onClick={connectThreads} className="sq-btn-primary w-full py-2 rounded-lg text-sm font-semibold">Connect Threads</button>
+            <details className="text-xs text-gray-500">
+              <summary className="cursor-pointer hover:text-gray-700">Or paste an access token</summary>
+              <p className="mt-2">Meta app → Use cases → Threads → Settings → <strong>Generate Access Token</strong> next to your name. Copy and paste it here.</p>
+              <input value={thToken} onChange={(e) => setThToken(e.target.value)} type="password" placeholder="THAA…" className="mt-2 w-full p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400" />
+              {thErr && <p className="text-xs text-red-600 mt-1">{thErr}</p>}
+              <button onClick={connectThreadsToken} disabled={thBusy || !thToken} className="mt-2 w-full py-2 rounded-lg text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">{thBusy ? <span className="sq-pulse">Verifying…</span> : 'Connect with token'}</button>
+            </details>
           </>
         )}
       </div>

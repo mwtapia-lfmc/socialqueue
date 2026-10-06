@@ -13,8 +13,23 @@ export async function POST(request: Request) {
   const { data: { user } } = await db.auth.getUser()
   if (!user) return Response.json({ error: 'Not signed in' }, { status: 401 })
 
-  const { platform, handle, appPassword } = await request.json()
-  if (platform !== 'bluesky') return Response.json({ error: 'Only Bluesky can be connected right now' }, { status: 400 })
+  const { platform, handle, appPassword, accessToken } = await request.json()
+
+  if (platform === 'threads') {
+    if (!accessToken) return Response.json({ error: 'Access token required' }, { status: 400 })
+    const meRes = await fetch(`https://graph.threads.net/v1.0/me?fields=id,username&access_token=${encodeURIComponent(accessToken.trim())}`)
+    const me = await meRes.json()
+    if (!me.id) return Response.json({ error: 'Threads rejected the token: ' + (me.error?.message || 'check that you copied the whole thing') }, { status: 400 })
+    const expiresAt = new Date(Date.now() + 60 * 86400_000).toISOString()
+    const { error } = await db.from('connections').upsert(
+      { user_id: user.id, platform, handle: me.username, account_id: me.id, credentials: { accessToken: accessToken.trim(), expiresAt } },
+      { onConflict: 'user_id,platform' }
+    )
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ ok: true, handle: me.username })
+  }
+
+  if (platform !== 'bluesky') return Response.json({ error: 'This platform cannot be connected yet' }, { status: 400 })
   if (!handle || !appPassword) return Response.json({ error: 'Handle and app password required' }, { status: 400 })
 
   const agent = new AtpAgent({ service: 'https://bsky.social' })
