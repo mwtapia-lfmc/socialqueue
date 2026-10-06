@@ -14,8 +14,9 @@ import type { TrendSource } from './api/trends/route'
 import Dashboard from './components/Dashboard'
 import BatchComposer from './components/BatchComposer'
 import Trends from './components/Trends'
+import Help from './components/Help'
 
-type View = 'home' | 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts'
+type View = 'home' | 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -157,7 +158,7 @@ export default function Home() {
             <span className="sq-gradient-text">SocialQueue</span>
             <span className="ml-2 align-middle text-[10px] font-medium text-gray-400 tracking-normal">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
           </button>
-          {user ? <button onClick={signOut} className="text-xs px-3 py-1.5 rounded-full bg-white border border-gray-200">Sign out</button>
+          {user ? <div className="flex gap-2"><button onClick={() => go('help')} aria-label="Help" className="text-xs h-8 w-8 rounded-full bg-white border border-gray-200 font-bold">?</button><button onClick={signOut} className="text-xs px-3 py-1.5 rounded-full bg-white border border-gray-200">Sign out</button></div>
             : !loading && <button onClick={signIn} className="sq-btn-primary text-xs px-3 py-1.5 rounded-full font-medium">Sign in</button>}
         </div>
       </header>
@@ -191,6 +192,7 @@ export default function Home() {
                 {!collapsed && <div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate">{user.user_metadata?.full_name || 'You'}</p><p className="text-[11px] text-gray-500 truncate">{user.email}</p></div>}
               </div>
               <div className={`flex ${collapsed ? 'flex-col' : ''} gap-1`}>
+                <button onClick={() => go('help')} title="Help & how-to" className={`sq-tool rounded-lg px-3 py-2 text-xs ${view === 'help' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600'}`}>{collapsed ? '?' : '? Help'}</button>
                 <button onClick={signOut} title="Sign out" className={`sq-tool rounded-lg px-3 py-2 text-xs text-gray-600 ${collapsed ? '' : 'flex-1 text-left'}`}>{collapsed ? '⎋' : 'Sign out'}</button>
                 <button onClick={toggleSidebar} title={collapsed ? 'Expand' : 'Collapse'} className="sq-tool rounded-lg px-3 py-2 text-xs text-gray-600">{collapsed ? '»' : '«'}</button>
               </div>
@@ -216,6 +218,7 @@ export default function Home() {
                   One composer for Threads, X, Bluesky, LinkedIn, and your blog — with AI analysis, image generation sized for each platform, and autosaved drafts.
                 </p>
                 <button onClick={signIn} className="sq-btn-primary px-8 py-4 rounded-2xl text-lg font-semibold">Sign in with Google</button>
+                <p className="mt-4 text-sm text-gray-500">Threads · Bluesky · X · LinkedIn · blog drafts · AI analysis · batch scheduling · trends</p>
                 {authError && (
                   <div className="max-w-xl mx-auto mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-left sq-fade-in">
                     <p className="text-sm font-semibold text-red-800">Sign-in didn't complete</p>
@@ -263,6 +266,7 @@ export default function Home() {
                 {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
                 {view === 'profiles' && <Profiles profiles={profiles} loading={profilesLoading} onRefresh={() => loadProfiles(user.id, true)} onRepurpose={repurpose} onConnect={() => go('accounts')} />}
                 {view === 'trends' && <Trends sources={trends?.sources ?? null} note={trends?.note ?? ''} loading={trendsLoading} onRefresh={() => loadTrends(user.id)} profiles={profiles} onWrite={(text) => quickPost(text)} />}
+                {view === 'help' && <Help onGo={go} />}
                 {view === 'accounts' && <Accounts connections={connections} onChange={() => { loadConnections(user.id); loadProfiles(user.id, true) }} />}
               </>
             )}
