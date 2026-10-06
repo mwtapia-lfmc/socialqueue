@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { PLATFORM_META, formatTime, parseYmd, timeAgo, type Platform } from '../lib/text'
 import type { Item } from './UnifiedComposer'
 import type { Connection } from './Accounts'
+import type { TrendSource } from '../api/trends/route'
 
 interface Props {
   user: any
   items: Item[]
   connections: Connection[]
-  onGo: (view: 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts') => void
+  trends: TrendSource[] | null
+  onGo: (view: 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts') => void
   onEdit: (item: Item) => void
   onQuickPost: (text: string) => void
 }
@@ -17,7 +19,7 @@ interface Props {
 const platformsOf = (it: Item) => (Object.keys(it.platforms) as Platform[]).filter((p) => it.platforms[p])
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-export default function Dashboard({ user, items, connections, onGo, onEdit, onQuickPost }: Props) {
+export default function Dashboard({ user, items, connections, trends, onGo, onEdit, onQuickPost }: Props) {
   const [quick, setQuick] = useState('')
   const today = new Date()
   const todayKey = ymd(today)
@@ -65,6 +67,31 @@ export default function Dashboard({ user, items, connections, onGo, onEdit, onQu
           </button>
         ))}
       </div>
+
+      {trends && trends.some((s) => s.trends.length) && (
+        <div className="sq-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-800">📈 Trending now</h3>
+            <button onClick={() => onGo('trends')} className="text-xs text-indigo-600 hover:underline">All trends →</button>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            {trends.filter((s) => s.trends.length).slice(0, 3).map((s) => (
+              <div key={s.key} className="min-w-0">
+                <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{s.icon} {s.label}</p>
+                <ul className="space-y-1">
+                  {s.trends.slice(0, 4).map((t, i) => (
+                    <li key={i} className="flex items-center gap-2 text-[13px]">
+                      <span className="text-gray-300 font-bold w-3 shrink-0">{i + 1}</span>
+                      <button onClick={() => onQuickPost(`${t.topic}\n\n`)} title="Write about this" className="truncate text-left text-gray-800 hover:text-indigo-700 flex-1">{t.topic}</button>
+                      {t.count != null && <span className="text-[10px] text-gray-400 shrink-0">{t.count >= 1000 ? `${(t.count / 1000).toFixed(t.count >= 10000 ? 0 : 1)}k` : t.count}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">

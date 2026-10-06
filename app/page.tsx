@@ -10,6 +10,7 @@ import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
 import Profiles from './components/Profiles'
 import type { Profile } from './api/profiles/route'
+import type { TrendSource } from './api/trends/route'
 import Dashboard from './components/Dashboard'
 import BatchComposer from './components/BatchComposer'
 import Trends from './components/Trends'
@@ -23,6 +24,8 @@ export default function Home() {
   const [connections, setConnections] = useState<Connection[]>([])
   const [profiles, setProfiles] = useState<Profile[] | null>(null)
   const [profilesLoading, setProfilesLoading] = useState(false)
+  const [trends, setTrends] = useState<{ sources: TrendSource[]; note: string } | null>(null)
+  const [trendsLoading, setTrendsLoading] = useState(false)
   const [view, setView] = useState<View>('home')
   const [editing, setEditing] = useState<Item | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
@@ -38,6 +41,7 @@ export default function Home() {
     const i = cacheGet<Item[]>(`sq:${userId}:items`); if (i) setItems(i)
     const c = cacheGet<Connection[]>(`sq:${userId}:connections`); if (c) setConnections(c)
     const p = cacheGet<Profile[]>(`sq:${userId}:profiles`); if (p) setProfiles(p)
+    const t = cacheGet<{ sources: TrendSource[]; note: string }>(`sq:${userId}:trends`); if (t) setTrends(t)
   }, [])
 
   const loadItems = useCallback(async (userId: string) => {
@@ -60,6 +64,13 @@ export default function Home() {
     setProfilesLoading(false)
   }, [])
 
+  const loadTrends = useCallback(async (userId: string) => {
+    setTrendsLoading(true)
+    const r = await authedFetch('/api/trends')
+    if (r.ok) { const d = await r.json(); const v = { sources: d.sources, note: d.note }; setTrends(v); cacheSet(`sq:${userId}:trends`, v) }
+    setTrendsLoading(false)
+  }, [])
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search.slice(1) + '&' + window.location.hash.slice(1))
     const desc = params.get('error_description') || params.get('error')
@@ -68,7 +79,7 @@ export default function Home() {
     if (connectErr) { setView('accounts'); setTimeout(() => alert('Could not connect: ' + decodeURIComponent(connectErr.replace(/\+/g, ' '))), 50) }
     if (params.get('connected')) setView('accounts')
     if (desc || connectErr || params.get('connected')) window.history.replaceState({}, '', window.location.pathname)
-    const boot = (u: any) => { hydrate(u.id); loadItems(u.id); loadConnections(u.id); loadProfiles(u.id) }
+    const boot = (u: any) => { hydrate(u.id); loadItems(u.id); loadConnections(u.id); loadProfiles(u.id); loadTrends(u.id) }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) boot(session.user)
@@ -82,7 +93,7 @@ export default function Home() {
       if (!session?.user) { setItems([]); setConnections([]); setProfiles(null) }
     })
     return () => sub.subscription.unsubscribe()
-  }, [hydrate, loadItems, loadConnections, loadProfiles])
+  }, [hydrate, loadItems, loadConnections, loadProfiles, loadTrends])
 
   const signIn = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
   const signOut = () => supabase.auth.signOut()
@@ -240,7 +251,7 @@ export default function Home() {
                   </button>
                 )}
 
-                {view === 'home' && <Dashboard user={user} items={items} connections={connections} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
+                {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
                 {view === 'compose' && (
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
@@ -251,7 +262,7 @@ export default function Home() {
                   onCreate={(date, time) => { setEditing({ id: '', kind: 'post', title: null, content: '', tone: 'casual', platforms: Object.fromEntries(['threads', 'twitter', 'bluesky', 'linkedin'].map((p) => [p, !!connections.find((c) => c.platform === p)])), hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: date, schedule_time: time, created_at: '', updated_at: '' } as unknown as Item); setView('compose') }} />}
                 {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
                 {view === 'profiles' && <Profiles profiles={profiles} loading={profilesLoading} onRefresh={() => loadProfiles(user.id, true)} onRepurpose={repurpose} onConnect={() => go('accounts')} />}
-                {view === 'trends' && <Trends profiles={profiles} onWrite={(text) => quickPost(text)} />}
+                {view === 'trends' && <Trends sources={trends?.sources ?? null} note={trends?.note ?? ''} loading={trendsLoading} onRefresh={() => loadTrends(user.id)} profiles={profiles} onWrite={(text) => quickPost(text)} />}
                 {view === 'accounts' && <Accounts connections={connections} onChange={() => { loadConnections(user.id); loadProfiles(user.id, true) }} />}
               </>
             )}
