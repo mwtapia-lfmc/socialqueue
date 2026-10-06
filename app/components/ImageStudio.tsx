@@ -26,8 +26,20 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
 
   const handleUpload = async (file?: File) => {
     if (!file) return
-    setWorking(await fileToDataUrl(file))
-    setNote(null)
+    setNote(null); setBusy('attach')
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      setWorking(dataUrl)
+      const blob = await cropToRatio(dataUrl, ratio)
+      const url = await uploadToStorage(blob, userId)
+      onChange([...images, url])
+      setNote(`Attached, cropped to ${RATIOS[ratio].label}. Amend it below or re-crop to a different format.`)
+    } catch (e) {
+      const msg = (e as Error).message || String(e)
+      setNote(null)
+      alert(/decode|load/i.test(msg) ? 'Could not read that image. HEIC/HEIF from the camera sometimes fails — try a screenshot or JPEG.' : 'Image could not be saved: ' + msg + '\n\nIf this mentions a policy or bucket, the storage SQL in MIGRATION.md has not been run.')
+    }
+    setBusy(null)
   }
 
   const handleGenerate = async () => {
@@ -75,17 +87,12 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
     setBusy('attach')
     try {
       const blob = await cropToRatio(working, ratio)
-      let url: string
-      try {
-        url = await uploadToStorage(blob, userId)
-      } catch {
-        url = URL.createObjectURL(blob)
-        setNote('Stored locally only — run the storage bucket SQL in MIGRATION.md to persist images')
-      }
+      const url = await uploadToStorage(blob, userId)
       onChange([...images, url])
       setWorking(null)
+      setNote(null)
     } catch (e) {
-      alert('Could not process image: ' + (e as Error).message)
+      alert('Image could not be saved: ' + ((e as Error).message || e) + '\n\nIf this mentions a policy or bucket, the storage SQL in MIGRATION.md has not been run.')
     }
     setBusy(null)
   }
@@ -115,11 +122,12 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-3">
           <label className="block">
-            <span className="text-xs font-medium text-gray-600">Upload</span>
+            <span className="text-xs font-medium text-gray-600">Upload {busy === 'attach' && <span className="sq-pulse text-indigo-600">· saving…</span>}</span>
             <input
               type="file"
               accept="image/*"
-              onChange={(e) => handleUpload(e.target.files?.[0])}
+              disabled={busy !== null}
+              onChange={(e) => { handleUpload(e.target.files?.[0]); e.target.value = '' }}
               className="mt-1 block w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:bg-indigo-50 file:text-indigo-700 file:text-xs file:font-semibold hover:file:bg-indigo-100"
             />
           </label>

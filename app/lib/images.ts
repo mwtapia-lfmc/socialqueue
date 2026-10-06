@@ -21,7 +21,7 @@ const loadImage = (src: string) =>
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => resolve(img)
-    img.onerror = reject
+    img.onerror = () => reject(new Error('Browser could not decode this image'))
     img.src = src
   })
 
@@ -57,6 +57,6 @@ export const fileToDataUrl = (file: File) =>
 export async function uploadToStorage(blob: Blob, userId: string): Promise<string> {
   const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`
   const { error } = await supabase.storage.from('media').upload(path, blob, { contentType: 'image/jpeg' })
-  if (error) throw error
+  if (error) throw new Error(error.message)
   return supabase.storage.from('media').getPublicUrl(path).data.publicUrl
 }
