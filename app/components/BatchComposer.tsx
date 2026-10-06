@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToSocial, formatTime, parseYmd, type Platform } from '../lib/text'
 import type { Connection } from './Accounts'
+import { RHYTHMS, checkCadence, type Rhythm } from '../lib/cadence'
 
 interface Props { userId: string; connections: Connection[]; onDone: (scheduled: number) => void }
 
@@ -27,6 +28,12 @@ export default function BatchComposer({ userId, connections, onDone }: Props) {
   const [times, setTimes] = useState<string[]>(['09:00', '12:30', '18:00'])
   const [overrides, setOverrides] = useState<Record<string, { date: string; time: string }>>({})
   const [saving, setSaving] = useState<null | 'schedule' | 'drafts'>(null)
+  const [rhythm, setRhythm] = useState('balanced')
+
+  const applyRhythm = (r: Rhythm) => {
+    setRhythm(r.key); setWeekdays(r.weekdays); setTimes(r.times); setOverrides({})
+    if (r.platform) setDrafts((ds) => ds.map((d) => ({ ...d, platforms: { ...d.platforms, [r.platform!]: true } })))
+  }
 
   const minLimit = Math.min(...PLATFORMS.filter((p) => defaultPlatforms[p]).map((p) => PLATFORM_LIMITS[p]), 500)
 
@@ -64,6 +71,7 @@ export default function BatchComposer({ userId, connections, onDone }: Props) {
   }, [drafts, slots])
 
   const when = (d: Draft, i: number) => overrides[d.id] || assignments[i]
+  const warnings = useMemo(() => checkCadence(drafts.map((d, i) => ({ platforms: d.platforms, ...(when(d, i) || { date: startDate, time: '09:00' }) }))), [drafts, assignments, overrides, startDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const commit = async (status: 'scheduled' | 'draft') => {
     if (!drafts.length) return
@@ -148,17 +156,27 @@ export default function BatchComposer({ userId, connections, onDone }: Props) {
         <div className="grid lg:grid-cols-3 gap-5">
           <div className="sq-card p-5 space-y-4 lg:sticky lg:top-24 self-start">
             <h3 className="font-semibold">Spread</h3>
+            <div className="text-sm"><span className="text-gray-600">Rhythm</span>
+              <div className="grid grid-cols-2 gap-1.5 mt-1">
+                {RHYTHMS.map((r) => (
+                  <button key={r.key} onClick={() => applyRhythm(r)} title={r.blurb} className={`text-left px-2.5 py-2 rounded-lg text-xs leading-tight ${rhythm === r.key ? 'sq-tab-active' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                    {r.platform ? PLATFORM_META[r.platform].icon + ' ' : ''}{r.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1.5">{RHYTHMS.find((r) => r.key === rhythm)?.blurb}</p>
+            </div>
             <label className="block text-sm"><span className="text-gray-600">Start</span><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 w-full h-10 px-2 border border-gray-200 rounded-lg" /></label>
             <label className="block text-sm"><span className="text-gray-600">Over</span>
               <div className="flex gap-2 mt-1">{[3, 7, 14, 30].map((n) => <button key={n} onClick={() => setDays(n)} className={`flex-1 h-9 rounded-lg text-sm ${days === n ? 'sq-tab-active' : 'bg-gray-100'}`}>{n}d</button>)}</div>
               <input type="number" min={1} max={90} value={days} onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))} className="mt-2 w-full h-9 px-2 border border-gray-200 rounded-lg text-sm" />
             </label>
             <div className="text-sm"><span className="text-gray-600">Days</span>
-              <div className="flex gap-1 mt-1">{DOW.map((d, i) => <button key={d} onClick={() => setWeekdays(weekdays.map((w, j) => j === i ? !w : w))} className={`flex-1 h-9 rounded-lg text-xs ${weekdays[i] ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>{d}</button>)}</div>
+              <div className="flex gap-1 mt-1">{DOW.map((d, i) => <button key={d} onClick={() => { setRhythm('custom'); setWeekdays(weekdays.map((w, j) => j === i ? !w : w)) }} className={`flex-1 h-9 rounded-lg text-xs ${weekdays[i] ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>{d}</button>)}</div>
             </div>
             <div className="text-sm"><span className="text-gray-600">Times each day</span>
               <div className="space-y-1.5 mt-1">
-                {times.map((t, i) => <div key={i} className="flex gap-2"><input type="time" value={t} onChange={(e) => setTimes(times.map((x, j) => j === i ? e.target.value : x))} className="flex-1 h-9 px-2 border border-gray-200 rounded-lg" />{times.length > 1 && <button onClick={() => setTimes(times.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-600 px-2">×</button>}</div>)}
+                {times.map((t, i) => <div key={i} className="flex gap-2"><input type="time" value={t} onChange={(e) => { setRhythm('custom'); setTimes(times.map((x, j) => j === i ? e.target.value : x)) }} className="flex-1 h-9 px-2 border border-gray-200 rounded-lg" />{times.length > 1 && <button onClick={() => setTimes(times.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-600 px-2">×</button>}</div>)}
                 <button onClick={() => setTimes([...times, '15:00'])} className="text-xs text-indigo-600 hover:underline">+ add a time</button>
               </div>
             </div>
@@ -170,6 +188,13 @@ export default function BatchComposer({ userId, connections, onDone }: Props) {
           </div>
 
           <div className="lg:col-span-2 space-y-2">
+            {warnings.length > 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 space-y-1.5">
+                {warnings.map((w, i) => <p key={i} className="text-xs text-amber-900"><span className={`inline-block text-[10px] px-1.5 py-0.5 rounded-full mr-1.5 ${PLATFORM_META[w.platform].color}`}>{PLATFORM_META[w.platform].icon} {PLATFORM_META[w.platform].label}</span>{w.message}</p>)}
+              </div>
+            ) : drafts.length > 0 && (
+              <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">✓ Cadence looks healthy for every platform. Cross-posts are staggered a minute apart automatically.</p>
+            )}
             {drafts.map((d, i) => {
               const w = when(d, i); const dt = w ? parseYmd(w.date) : null
               return (

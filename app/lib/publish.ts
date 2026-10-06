@@ -150,12 +150,15 @@ async function publishToLinkedIn(conn: any, text: string, imageUrls: string[]): 
   return { ok: true, url: urn ? `https://www.linkedin.com/feed/update/${urn}` : 'https://www.linkedin.com/in/me/recent-activity/all/' }
 }
 
-export async function publishItem(db: SupabaseClient, item: any) {
+export async function publishItem(db: SupabaseClient, item: any, opts: { stagger?: boolean } = {}) {
   const { data: conns } = await db.from('connections').select('*').eq('user_id', item.user_id)
   const baseText = markdownToSocial(item.content)
-  const log: Record<string, Result> = {}
+  const log: Record<string, Result> = { ...(item.publish_log || {}) }
+  const targets = Object.keys(item.platforms || {}).filter((k) => item.platforms[k] && !log[k]?.ok)
+  // Scheduled runs publish one platform per tick so cross-posts land a minute apart instead of simultaneously
+  const batch = opts.stagger ? targets.slice(0, 1) : targets
 
-  for (const p of Object.keys(item.platforms || {}).filter((k) => item.platforms[k])) {
+  for (const p of batch) {
     const conn = conns?.find((c) => c.platform === p)
     if (!conn) { log[p] = { ok: false, error: 'Account not connected' }; continue }
     const text = item.overrides?.[p] ?? baseText
@@ -170,14 +173,15 @@ export async function publishItem(db: SupabaseClient, item: any) {
     }
   }
 
+  const remaining = Object.keys(item.platforms || {}).filter((k) => item.platforms[k] && !log[k]?.ok && !log[k])
   const anyOk = Object.values(log).some((r) => r.ok)
-  const status = anyOk ? 'published' : 'failed'
+  const status = remaining.length && opts.stagger ? 'scheduled' : anyOk ? 'published' : 'failed'
   await db.from('items').update({
     status,
-    published_at: anyOk ? new Date().toISOString() : null,
+    published_at: anyOk && !remaining.length ? new Date().toISOString() : item.published_at ?? null,
     publish_log: log,
     updated_at: new Date().toISOString(),
   }).eq('id', item.id)
 
-  return { status, log }
+  return { status, log, remaining }
 }

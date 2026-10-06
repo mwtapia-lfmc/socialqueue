@@ -25,6 +25,6 @@ export async function GET(request: Request) {
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
   const results = []
-  for (const item of due || []) results.push({ id: item.id, ...(await publishItem(db, item)) })
+  for (const item of due || []) results.push({ id: item.id, ...(await publishItem(db, item, { stagger: true })) })
   return Response.json({ checked: `${date} ${time}`, published: results })
 }

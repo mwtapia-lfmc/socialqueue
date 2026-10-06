@@ -25,6 +25,10 @@ export default function Home() {
   const [view, setView] = useState<View>('home')
   const [editing, setEditing] = useState<Item | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
+  useEffect(() => { try { setCollapsed(localStorage.getItem('sq:sidebar') === 'collapsed') } catch {} }, [])
+  const toggleSidebar = () => setCollapsed((c) => { try { localStorage.setItem('sq:sidebar', c ? 'open' : 'collapsed') } catch {}; return !c })
+  const go = (v: View) => { setView(v); if (v !== 'compose') setEditing(null); window.scrollTo({ top: 0 }) }
 
   const cacheGet = <T,>(k: string): T | null => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null } catch { return null } }
   const cacheSet = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
@@ -132,94 +136,122 @@ export default function Home() {
   return (
     <main className="min-h-screen">
       <div className="sq-bg" />
-      <header className="sticky top-0 z-20 backdrop-blur-md bg-white/60 border-b border-white/60">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-4">
-          <button onClick={() => { setView('home'); setEditing(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className="text-2xl font-extrabold tracking-tight hover:opacity-80 transition" aria-label="Home">
+
+      {/* Mobile top bar */}
+      <header className="md:hidden sticky top-0 z-20 backdrop-blur-md bg-white/60 border-b border-white/60">
+        <div className="px-4 py-3 flex justify-between items-center gap-4">
+          <button onClick={() => go('home')} className="text-xl font-extrabold tracking-tight" aria-label="Home">
             <span className="sq-gradient-text">SocialQueue</span>
-            <span className="ml-2 align-middle text-[11px] font-medium text-gray-400 tracking-normal">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
+            <span className="ml-2 align-middle text-[10px] font-medium text-gray-400 tracking-normal">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
           </button>
-          {user ? (
-            <div className="flex items-center gap-3">
-              <span className="hidden sm:block text-sm text-gray-600">{user.email}</span>
-              <button onClick={signOut} className="text-sm px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50">Sign out</button>
-            </div>
-          ) : !loading && (
-            <button onClick={signIn} className="sq-btn-primary text-sm px-4 py-2 rounded-full font-medium">Sign in with Google</button>
-          )}
+          {user ? <button onClick={signOut} className="text-xs px-3 py-1.5 rounded-full bg-white border border-gray-200">Sign out</button>
+            : !loading && <button onClick={signIn} className="sq-btn-primary text-xs px-3 py-1.5 rounded-full font-medium">Sign in</button>}
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 md:py-8 pb-24 md:pb-8">
-        {loading ? (
-          <div className="space-y-5 sq-pulse" aria-busy="true">
-            <div className="h-8 w-64 rounded-lg bg-white/70" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[0, 1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-white/70" />)}</div>
-            <div className="grid lg:grid-cols-3 gap-5"><div className="lg:col-span-2 h-64 rounded-2xl bg-white/70" /><div className="h-64 rounded-2xl bg-white/70" /></div>
-          </div>
-        ) : !user ? (
-          <div className="text-center py-20 sq-fade-in">
-            <h2 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-5">
-              Write once.<br /><span className="sq-gradient-text">Post everywhere.</span>
-            </h2>
-            <p className="text-gray-600 text-lg max-w-xl mx-auto mb-8">
-              One composer for Threads, X, Bluesky, and your blog — with AI analysis, image generation sized for each platform, and autosaved drafts.
-            </p>
-            <button onClick={signIn} className="sq-btn-primary px-8 py-4 rounded-2xl text-lg font-semibold">Sign in with Google</button>
-            {authError && (
-              <div className="max-w-xl mx-auto mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-left sq-fade-in">
-                <p className="text-sm font-semibold text-red-800">Sign-in didn't complete</p>
-                <p className="text-sm text-red-700 mt-1">{authError}</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="hidden md:flex gap-2 mb-6 flex-wrap">
-              {tabs.map((t) => (
-                <button key={t.key} onClick={() => { setView(t.key); if (t.key !== 'compose') setEditing(null) }}
-                  className={`sq-tab px-4 py-2 rounded-full text-sm font-medium ${view === t.key ? 'sq-tab-active' : 'bg-white/80 text-gray-700 border border-gray-200 hover:border-indigo-300'}`}>
-                  {t.label}{t.count ? <span className={`ml-2 text-[11px] px-1.5 py-0.5 rounded-full ${view === t.key ? 'bg-white/25' : 'bg-gray-100'}`}>{t.count}</span> : null}
-                </button>
-              ))}
-            </div>
-
-            <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-              <div className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
-                {tabs.map((t) => {
-                  const [icon, ...rest] = t.label.split(' ')
-                  const active = view === t.key
-                  return (
-                    <button key={t.key} onClick={() => { setView(t.key); if (t.key !== 'compose') setEditing(null); window.scrollTo({ top: 0 }) }}
-                      className={`relative flex flex-col items-center gap-0.5 py-2 text-[10px] ${active ? 'text-indigo-600 font-semibold' : 'text-gray-500'}`}>
-                      <span className="text-lg leading-none">{icon}</span>
-                      <span className="truncate max-w-full px-0.5">{rest.join(' ')}</span>
-                      {t.count ? <span className="absolute top-1 right-1/2 translate-x-4 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] flex items-center justify-center">{t.count}</span> : null}
-                    </button>
-                  )
-                })}
-              </div>
-            </nav>
-
-            {connections.length === 0 && (view === 'compose' || view === 'home') && (
-              <button onClick={() => setView('accounts')} className="w-full mb-5 text-left sq-card p-4 flex items-center gap-3 border-amber-200 bg-amber-50/70 hover:bg-amber-50 sq-fade-in">
-                <span className="text-xl">🔗</span>
-                <span className="text-sm text-amber-900"><strong>No accounts connected.</strong> Scheduled posts won't publish anywhere yet — connect Bluesky to start.</span>
-                <span className="ml-auto text-amber-700 text-sm font-medium">Connect →</span>
+      <div className="md:flex">
+        {/* Desktop sidebar */}
+        {user && (
+          <aside className={`hidden md:flex flex-col sticky top-0 h-screen shrink-0 border-r border-white/70 bg-white/55 backdrop-blur-md transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-60'}`}>
+            <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-4 h-16`}>
+              <button onClick={() => go('home')} className="font-extrabold tracking-tight text-left" aria-label="Home" title="Home">
+                {collapsed ? <span className="sq-gradient-text text-xl">SQ</span> : <><span className="sq-gradient-text text-xl">SocialQueue</span><span className="block text-[10px] font-medium text-gray-400 -mt-0.5">v{process.env.NEXT_PUBLIC_APP_VERSION}</span></>}
               </button>
-            )}
-
-            {view === 'home' && <Dashboard user={user} items={items} connections={connections} onGo={(v) => setView(v)} onEdit={edit} onQuickPost={quickPost} />}
-            {view === 'compose' && (
-              <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
-            )}
-            {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); setView(n ? 'calendar' : 'drafts') }} />}
-            {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
-            {view === 'calendar' && <Calendar items={items.filter((i) => i.schedule_date)} onSelect={edit} />}
-            {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
-            {view === 'profiles' && <Profiles profiles={profiles} loading={profilesLoading} onRefresh={() => loadProfiles(user.id, true)} onRepurpose={repurpose} onConnect={() => setView('accounts')} />}
-            {view === 'accounts' && <Accounts connections={connections} onChange={() => { loadConnections(user.id); loadProfiles(user.id, true) }} />}
-          </>
+            </div>
+            <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+              {tabs.map((t) => {
+                const [icon, ...rest] = t.label.split(' ')
+                const active = view === t.key
+                return (
+                  <button key={t.key} onClick={() => go(t.key)} title={rest.join(' ')}
+                    className={`sq-tab w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ${collapsed ? 'justify-center' : ''} ${active ? 'sq-tab-active' : 'text-gray-700 hover:bg-white/80'}`}>
+                    <span className="text-lg leading-none w-6 text-center">{icon}</span>
+                    {!collapsed && <span className="flex-1 text-left truncate">{rest.join(' ')}</span>}
+                    {t.count ? <span className={`text-[11px] min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center ${active ? 'bg-white/25' : 'bg-gray-100 text-gray-700'} ${collapsed ? 'absolute translate-x-4 -translate-y-3' : ''}`}>{t.count}</span> : null}
+                  </button>
+                )
+              })}
+            </nav>
+            <div className="px-3 pb-3 pt-2 border-t border-white/70 space-y-1">
+              <div className={`flex items-center gap-2 px-2 py-1.5 ${collapsed ? 'justify-center' : ''}`}>
+                {user.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" /> : <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />}
+                {!collapsed && <div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate">{user.user_metadata?.full_name || 'You'}</p><p className="text-[11px] text-gray-500 truncate">{user.email}</p></div>}
+              </div>
+              <div className={`flex ${collapsed ? 'flex-col' : ''} gap-1`}>
+                <button onClick={signOut} title="Sign out" className={`sq-tool rounded-lg px-3 py-2 text-xs text-gray-600 ${collapsed ? '' : 'flex-1 text-left'}`}>{collapsed ? '⎋' : 'Sign out'}</button>
+                <button onClick={toggleSidebar} title={collapsed ? 'Expand' : 'Collapse'} className="sq-tool rounded-lg px-3 py-2 text-xs text-gray-600">{collapsed ? '»' : '«'}</button>
+              </div>
+            </div>
+          </aside>
         )}
+
+        <div className="flex-1 min-w-0">
+          <div className={`mx-auto px-4 py-6 md:py-8 pb-24 md:pb-8 ${user ? 'max-w-[1400px]' : 'max-w-7xl'}`}>
+            {loading ? (
+              <div className="space-y-5 sq-pulse" aria-busy="true">
+                <div className="h-8 w-64 rounded-lg bg-white/70" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[0, 1, 2, 3].map((i) => <div key={i} className="h-20 rounded-2xl bg-white/70" />)}</div>
+                <div className="grid lg:grid-cols-3 gap-5"><div className="lg:col-span-2 h-64 rounded-2xl bg-white/70" /><div className="h-64 rounded-2xl bg-white/70" /></div>
+              </div>
+            ) : !user ? (
+              <div className="text-center py-20 sq-fade-in">
+                <div className="hidden md:block mb-10 text-2xl font-extrabold tracking-tight"><span className="sq-gradient-text">SocialQueue</span></div>
+                <h2 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-5">
+                  Write once.<br /><span className="sq-gradient-text">Post everywhere.</span>
+                </h2>
+                <p className="text-gray-600 text-lg max-w-xl mx-auto mb-8">
+                  One composer for Threads, X, Bluesky, LinkedIn, and your blog — with AI analysis, image generation sized for each platform, and autosaved drafts.
+                </p>
+                <button onClick={signIn} className="sq-btn-primary px-8 py-4 rounded-2xl text-lg font-semibold">Sign in with Google</button>
+                {authError && (
+                  <div className="max-w-xl mx-auto mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-left sq-fade-in">
+                    <p className="text-sm font-semibold text-red-800">Sign-in didn't complete</p>
+                    <p className="text-sm text-red-700 mt-1">{authError}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {/* Mobile bottom nav */}
+                <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                  <div className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+                    {tabs.map((t) => {
+                      const [icon, ...rest] = t.label.split(' ')
+                      const active = view === t.key
+                      return (
+                        <button key={t.key} onClick={() => go(t.key)}
+                          className={`relative flex flex-col items-center gap-0.5 py-2 text-[10px] ${active ? 'text-indigo-600 font-semibold' : 'text-gray-500'}`}>
+                          <span className="text-lg leading-none">{icon}</span>
+                          <span className="truncate max-w-full px-0.5">{rest.join(' ')}</span>
+                          {t.count ? <span className="absolute top-1 right-1/2 translate-x-4 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] flex items-center justify-center">{t.count}</span> : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </nav>
+
+                {connections.length === 0 && (view === 'compose' || view === 'home') && (
+                  <button onClick={() => go('accounts')} className="w-full mb-5 text-left sq-card p-4 flex items-center gap-3 border-amber-200 bg-amber-50/70 hover:bg-amber-50 sq-fade-in">
+                    <span className="text-xl">🔗</span>
+                    <span className="text-sm text-amber-900"><strong>No accounts connected.</strong> Scheduled posts won't publish anywhere yet — connect an account to start.</span>
+                    <span className="ml-auto text-amber-700 text-sm font-medium">Connect →</span>
+                  </button>
+                )}
+
+                {view === 'home' && <Dashboard user={user} items={items} connections={connections} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
+                {view === 'compose' && (
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
+                )}
+                {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
+                {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
+                {view === 'calendar' && <Calendar items={items.filter((i) => i.schedule_date)} onSelect={edit} />}
+                {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
+                {view === 'profiles' && <Profiles profiles={profiles} loading={profilesLoading} onRefresh={() => loadProfiles(user.id, true)} onRepurpose={repurpose} onConnect={() => go('accounts')} />}
+                {view === 'accounts' && <Accounts connections={connections} onChange={() => { loadConnections(user.id); loadProfiles(user.id, true) }} />}
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </main>
   )
