@@ -104,6 +104,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-4">
           <button onClick={() => { setView('compose'); setEditing(null); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className="text-2xl font-extrabold tracking-tight hover:opacity-80 transition" aria-label="Home">
             <span className="sq-gradient-text">SocialQueue</span>
+            <span className="ml-2 align-middle text-[11px] font-medium text-gray-400 tracking-normal">v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
           </button>
           {user ? (
             <div className="flex items-center gap-3">
