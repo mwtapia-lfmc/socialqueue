@@ -34,10 +34,11 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search.slice(1) + '&' + window.location.hash.slice(1))
     const desc = params.get('error_description') || params.get('error')
-    if (desc) {
-      setAuthError(decodeURIComponent(desc.replace(/\+/g, ' ')))
-      window.history.replaceState({}, '', window.location.pathname)
-    }
+    if (desc) setAuthError(decodeURIComponent(desc.replace(/\+/g, ' ')))
+    const connectErr = params.get('connect_error')
+    if (connectErr) { setView('accounts'); setTimeout(() => alert('Could not connect: ' + decodeURIComponent(connectErr.replace(/\+/g, ' '))), 50) }
+    if (params.get('connected')) setView('accounts')
+    if (desc || connectErr || params.get('connected')) window.history.replaceState({}, '', window.location.pathname)
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) { loadItems(session.user.id); loadConnections() }

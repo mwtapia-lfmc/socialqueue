@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { authedFetch } from '../lib/api'
+import { supabase } from '../lib/supabase'
 
 export interface Connection { id: string; platform: string; handle: string; account_id: string | null; created_at: string }
 
@@ -13,6 +14,13 @@ export default function Accounts({ connections, onChange }: Props) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const bluesky = connections.find((c) => c.platform === 'bluesky')
+  const threads = connections.find((c) => c.platform === 'threads')
+
+  const connectThreads = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return alert('Sign in first')
+    window.location.href = `/api/auth/threads?jwt=${encodeURIComponent(session.access_token)}`
+  }
 
   const connect = async () => {
     setBusy(true); setErr(null)
@@ -57,9 +65,21 @@ export default function Accounts({ connections, onChange }: Props) {
         <p className="text-xs text-gray-500">Needs an X developer app (free tier allows posting). Once you have a Client ID and Secret from developer.x.com, connecting is a one-click OAuth login here.</p>
       </div>
 
-      <div className="sq-card p-5 space-y-2 opacity-90">
-        <div className="flex items-center gap-2"><span className="text-2xl">🧵</span><h3 className="font-semibold">Threads</h3><span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Pending Meta</span></div>
-        <p className="text-xs text-gray-500">Waiting on Meta to approve the Threads API app. Check developers.facebook.com — once approved, this becomes a one-click login.</p>
+      <div className="sq-card p-5 space-y-3">
+        <div className="flex items-center gap-2"><span className="text-2xl">🧵</span><h3 className="font-semibold">Threads</h3>
+          {threads && <span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>}</div>
+        {threads ? (
+          <>
+            <p className="text-sm text-gray-700">@{threads.handle}</p>
+            <p className="text-xs text-gray-500">Scheduled posts publish here automatically. Token auto-renews.</p>
+            <button onClick={() => disconnect('threads')} className="text-sm text-red-600 hover:underline">Disconnect</button>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500">Logs you into Threads and asks permission to post. Your account must be listed as a Threads Tester on the Meta app while it is in development mode.</p>
+            <button onClick={connectThreads} className="sq-btn-primary w-full py-2 rounded-lg text-sm font-semibold">Connect Threads</button>
+          </>
+        )}
       </div>
     </div>
   )

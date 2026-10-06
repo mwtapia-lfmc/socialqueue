@@ -30,6 +30,63 @@ async function publishToBluesky(conn: any, text: string, imageUrls: string[]): P
   return { ok: true, url: `https://bsky.app/profile/${agent.session?.handle || conn.handle}/post/${rkey}` }
 }
 
+async function threadsRefreshIfNeeded(db: SupabaseClient, conn: any): Promise<string> {
+  const { accessToken, expiresAt } = conn.credentials
+  const msLeft = new Date(expiresAt).getTime() - Date.now()
+  if (msLeft > 7 * 86400_000) return accessToken
+  const r = await fetch(`https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=${accessToken}`)
+  const j = await r.json()
+  if (!j.access_token) return accessToken
+  const next = { accessToken: j.access_token, expiresAt: new Date(Date.now() + j.expires_in * 1000).toISOString() }
+  await db.from('connections').update({ credentials: next }).eq('id', conn.id)
+  return j.access_token
+}
+
+async function publishToThreads(db: SupabaseClient, conn: any, text: string, imageUrls: string[]): Promise<Result> {
+  const token = await threadsRefreshIfNeeded(db, conn)
+  const uid = conn.account_id
+  const base = `https://graph.threads.net/v1.0/${uid}`
+  const create = async (params: Record<string, string>) => {
+    const r = await fetch(`${base}/threads`, { method: 'POST', body: new URLSearchParams({ ...params, access_token: token }) })
+    const j = await r.json()
+    if (!j.id) throw new Error(j.error?.message || 'Threads container creation failed')
+    return j.id as string
+  }
+  const waitReady = async (id: string) => {
+    for (let i = 0; i < 10; i++) {
+      const r = await fetch(`https://graph.threads.net/v1.0/${id}?fields=status,error_message&access_token=${token}`)
+      const j = await r.json()
+      if (j.status === 'FINISHED') return
+      if (j.status === 'ERROR') throw new Error(j.error_message || 'Threads media processing failed')
+      await new Promise((res) => setTimeout(res, 1500))
+    }
+  }
+
+  let containerId: string
+  if (imageUrls.length === 0) {
+    containerId = await create({ media_type: 'TEXT', text })
+  } else if (imageUrls.length === 1) {
+    containerId = await create({ media_type: 'IMAGE', image_url: imageUrls[0], text })
+  } else {
+    const children: string[] = []
+    for (const u of imageUrls.slice(0, 10)) {
+      const id = await create({ media_type: 'IMAGE', image_url: u, is_carousel_item: 'true' })
+      await waitReady(id)
+      children.push(id)
+    }
+    containerId = await create({ media_type: 'CAROUSEL', children: children.join(','), text })
+  }
+  await waitReady(containerId)
+
+  const pub = await fetch(`${base}/threads_publish`, { method: 'POST', body: new URLSearchParams({ creation_id: containerId, access_token: token }) })
+  const pj = await pub.json()
+  if (!pj.id) throw new Error(pj.error?.message || 'Threads publish failed')
+
+  const permRes = await fetch(`https://graph.threads.net/v1.0/${pj.id}?fields=permalink&access_token=${token}`)
+  const perm = await permRes.json()
+  return { ok: true, url: perm.permalink || `https://www.threads.net/@${conn.handle}` }
+}
+
 export async function publishItem(db: SupabaseClient, item: any) {
   const { data: conns } = await db.from('connections').select('*').eq('user_id', item.user_id)
   const baseText = markdownToSocial(item.content)
@@ -40,8 +97,8 @@ export async function publishItem(db: SupabaseClient, item: any) {
     if (!conn) { log[p] = { ok: false, error: 'Account not connected' }; continue }
     const text = item.overrides?.[p] ?? baseText
     try {
-      log[p] = p === 'bluesky'
-        ? await publishToBluesky(conn, text, item.image_urls || [])
+      log[p] = p === 'bluesky' ? await publishToBluesky(conn, text, item.image_urls || [])
+        : p === 'threads' ? await publishToThreads(db, conn, text, item.image_urls || [])
         : { ok: false, error: 'Publishing to this platform is not available yet' }
     } catch (e: any) {
       log[p] = { ok: false, error: String(e?.message || e) }
