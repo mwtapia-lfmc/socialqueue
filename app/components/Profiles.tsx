@@ -19,6 +19,7 @@ const dayLabel = (key: string) => {
 export default function Profiles({ onRepurpose, onConnect }: Props) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
+  const [mode, setMode] = useState<'columns' | 'timeline'>('columns')
   const colRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const jumpTo = (key: string) => {
@@ -50,8 +51,104 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
   }
   const dayList = Array.from(days.entries()).sort((a, b) => b[0].localeCompare(a[0]))
 
+  const Toggle = (
+    <div className="flex items-center gap-2 mb-4">
+      <div className="flex gap-1 p-1 bg-white/70 border border-gray-200 rounded-full">
+        {(['columns', 'timeline'] as const).map((m) => (
+          <button key={m} onClick={() => setMode(m)} className={`sq-tab px-3 py-1 rounded-full text-xs font-medium ${mode === m ? 'sq-tab-active' : 'text-gray-600 hover:text-gray-900'}`}>
+            {m === 'columns' ? '▤ Columns' : '⫶ Timeline'}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  if (mode === 'timeline') {
+    const todayKey = dayKey(new Date().toISOString())
+    const allKeys = profiles.flatMap((pr) => pr.posts.map((p) => dayKey(p.createdAt)))
+    const firstKey = allKeys.length ? allKeys.reduce((a, b) => (a < b ? a : b)) : todayKey
+    // rows: today → first post; runs of empty days collapse into one spacer row
+    const rows: { key: string; quiet?: number }[] = []
+    const cursor = new Date(); cursor.setHours(0, 0, 0, 0)
+    let quiet = 0
+    while (true) {
+      const k = dayKey(cursor.toISOString())
+      const has = days.has(k)
+      if (has || k === todayKey) {
+        if (quiet) { rows.push({ key: `q-${k}`, quiet }); quiet = 0 }
+        rows.push({ key: k })
+      } else quiet++
+      if (k <= firstKey) break
+      cursor.setDate(cursor.getDate() - 1)
+    }
+    const postsOn = (pr: Profile, k: string) => pr.posts.filter((p) => dayKey(p.createdAt) === k).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const cols = `repeat(${profiles.length}, minmax(0, 1fr)) 84px`
+
+    return (
+      <div className="sq-fade-in">
+        {Toggle}
+        <div className="sq-neutral rounded-2xl p-3">
+          <div className="grid gap-x-3 sticky top-[72px] z-10 bg-white/85 backdrop-blur rounded-xl px-2 py-2 mb-1" style={{ gridTemplateColumns: cols }}>
+            {profiles.map((pr) => {
+              const meta = PLATFORM_META[pr.platform as Platform]
+              return (
+                <div key={pr.platform} className="flex items-center gap-2 min-w-0">
+                  {pr.avatar ? <img src={pr.avatar} alt="" className="h-7 w-7 rounded-full object-cover" /> : <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />}
+                  <div className="min-w-0 leading-tight"><p className="text-xs font-semibold truncate">{pr.displayName || pr.handle}</p><p className="text-[10px] text-gray-500 truncate">{meta.icon} @{pr.handle}</p></div>
+                </div>
+              )
+            })}
+            <div className="text-[10px] text-gray-400 text-right self-center">date</div>
+          </div>
+
+          <div className="sq-scroll overflow-y-auto" style={{ maxHeight: '70vh' }}>
+            {rows.map((row) =>
+              row.quiet ? (
+                <div key={row.key} className="grid gap-x-3 items-center" style={{ gridTemplateColumns: cols }}>
+                  {profiles.map((pr) => <div key={pr.platform} className="h-5 border-l border-dashed border-gray-200 ml-3" />)}
+                  <div className="text-[9px] text-gray-300 text-right pr-1">{row.quiet}d</div>
+                </div>
+              ) : (
+                <div key={row.key} className={`grid gap-x-3 py-1.5 border-t border-gray-100 ${row.key === todayKey ? 'bg-indigo-50/40 rounded-lg' : ''}`} style={{ gridTemplateColumns: cols }}>
+                  {profiles.map((pr) => {
+                    const ps = postsOn(pr, row.key)
+                    return (
+                      <div key={pr.platform} className="min-w-0 space-y-1">
+                        {ps.map((p) => (
+                          <a key={p.id} href={p.url} target="_blank" rel="noopener" className={`block rounded-lg px-2 py-1.5 sq-tint-${pr.platform} hover:brightness-95 transition`}>
+                            <div className="flex items-start gap-1.5">
+                              {p.image && <img src={p.image} alt="" className="h-8 w-8 rounded object-cover shrink-0" />}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] text-gray-800 leading-snug line-clamp-2">{p.text || p.label || 'Media post'}</p>
+                                <div className="flex gap-2 text-[10px] text-gray-500 mt-0.5">
+                                  <span>{new Date(p.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                                  {p.likes != null && <span>♡ {n(p.likes)}</span>}
+                                  {p.replies != null && <span>💬 {n(p.replies)}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    )
+                  })}
+                  <div className={`text-right pr-1 self-start pt-1 leading-tight ${row.key === todayKey ? 'text-indigo-600' : 'text-gray-400'}`}>
+                    <div className="text-[11px] font-medium">{dayLabel(row.key).replace(/,.*$/, '')}</div>
+                    <div className="text-[10px]">{row.key === todayKey ? '' : (() => { const [y, m, d] = row.key.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })()}</div>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="grid gap-5 sq-fade-in lg:[grid-template-columns:var(--cols)]" style={{ ["--cols" as any]: `repeat(${profiles.length}, minmax(0, 1fr)) 170px` }}>
+    <div className="sq-fade-in">
+    {Toggle}
+    <div className="grid gap-5 lg:[grid-template-columns:var(--cols)]" style={{ ["--cols" as any]: `repeat(${profiles.length}, minmax(0, 1fr)) 170px` }}>
       {profiles.map((cur) => {
         const meta = PLATFORM_META[cur.platform as Platform]
         return (
@@ -127,6 +224,7 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
           </ol>
         </div>
       </section>
+    </div>
     </div>
   )
 }
