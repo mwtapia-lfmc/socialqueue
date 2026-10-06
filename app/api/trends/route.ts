@@ -42,7 +42,8 @@ async function google() {
       const b = m[1]
       const news = [...b.matchAll(/<ht:news_item>([\s\S]*?)<\/ht:news_item>/g)].slice(0, 3).map((n) => ({ title: g(n[1], 'ht:news_item_title'), source: g(n[1], 'ht:news_item_source'), url: g(n[1], 'ht:news_item_url') }))
       const traffic = g(b, 'ht:approx_traffic')
-      return { topic: g(b, 'title'), summary: news[0]?.title, news, url: news[0]?.url, count: Number(traffic.replace(/[^\d]/g, '')) || undefined, countLabel: 'searches', secondary: traffic ? `${traffic} searches` : undefined, startedAt: g(b, 'pubDate') ? new Date(g(b, 'pubDate')).toISOString() : undefined, image: g(b, 'ht:picture') }
+      const topic = g(b, 'title')
+      return { topic, summary: news[0]?.title, news, url: `https://www.google.com/search?q=${encodeURIComponent(topic)}`, count: Number(traffic.replace(/[^\d]/g, '')) || undefined, countLabel: 'searches', secondary: traffic ? `${traffic} searches` : undefined, startedAt: g(b, 'pubDate') ? new Date(g(b, 'pubDate')).toISOString() : undefined, image: g(b, 'ht:picture') }
     }).filter((t) => t.topic)
   } catch (e: any) { src.error = e.message }
   return src
