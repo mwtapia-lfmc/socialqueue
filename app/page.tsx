@@ -8,8 +8,9 @@ import Drafts from './components/Drafts'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
+import Profiles from './components/Profiles'
 
-type View = 'compose' | 'drafts' | 'calendar' | 'queue' | 'accounts'
+type View = 'compose' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -79,6 +80,10 @@ export default function Home() {
   }
 
   const accounts = Object.fromEntries(connections.map((c) => [c.platform, { handle: c.handle, avatar: c.avatar, displayName: c.displayName }]))
+  const repurpose = (text: string, platform: string) => {
+    setEditing({ id: '', kind: 'post', title: null, content: text, tone: 'casual', platforms: { threads: platform === 'threads', twitter: false, bluesky: platform === 'bluesky' }, hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '' } as unknown as Item)
+    setView('compose')
+  }
   const drafts = items.filter((i) => i.status === 'draft')
   const scheduled = items.filter((i) => i.status === 'scheduled')
   const queue = items.filter((i) => i.status !== 'draft')
@@ -88,6 +93,7 @@ export default function Home() {
     { key: 'drafts', label: '📝 Drafts', count: drafts.length },
     { key: 'calendar', label: '📅 Calendar' },
     { key: 'queue', label: '🚀 Queue', count: scheduled.length },
+    { key: 'profiles', label: '👤 Profiles' },
     { key: 'accounts', label: '🔗 Accounts', count: connections.length },
   ]
 
@@ -147,11 +153,12 @@ export default function Home() {
             )}
 
             {view === 'compose' && (
-              <UnifiedComposer key={editing?.id ?? 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
+              <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
             )}
             {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
             {view === 'calendar' && <Calendar items={scheduled} onSelect={edit} />}
             {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
+            {view === 'profiles' && <Profiles onRepurpose={repurpose} onConnect={() => setView('accounts')} />}
             {view === 'accounts' && <Accounts connections={connections} onChange={loadConnections} />}
           </>
         )}

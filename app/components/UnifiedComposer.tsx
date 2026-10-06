@@ -56,7 +56,7 @@ const empty = (): Omit<Item, 'id' | 'created_at' | 'updated_at'> => ({
 })
 
 export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, onScheduled }: Props) {
-  const [id, setId] = useState<string | null>(item?.id ?? null)
+  const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(), ...item } : empty()))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
   const [savedAt, setSavedAt] = useState<Date | null>(null)
@@ -75,7 +75,7 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
 
   useEffect(() => {
     if (item) {
-      setId(item.id)
+      setId(item.id || null)
       setDraft({ ...empty(), ...item })
       skipNextSave.current = true
       setSaveState('idle')
