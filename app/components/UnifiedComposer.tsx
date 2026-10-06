@@ -40,12 +40,13 @@ const TONES = ['casual', 'professional', 'funny', 'inspirational', 'urgent']
 const EMOJIS = ['🔥', '✨', '🚀', '💡', '🎯', '👀', '🙌', '💯', '📣', '🧠', '❤️', '😂', '🤔', '✅', '👇', '🎉']
 const PLATFORMS = Object.keys(PLATFORM_META) as Platform[]
 
-const empty = (): Omit<Item, 'id' | 'created_at' | 'updated_at'> => ({
+const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, 'id' | 'created_at' | 'updated_at'> => ({
   kind: 'post',
   title: '',
   content: '',
   tone: 'casual',
-  platforms: { threads: true, twitter: false, bluesky: false, linkedin: false },
+  // default to every connected account; fall back to Threads if nothing is connected yet
+  platforms: Object.fromEntries(PLATFORMS.map((p) => [p, PLATFORMS.some((q) => connected[q]) ? !!connected[p] : p === 'threads'])) as Record<Platform, boolean>,
   hashtags: [],
   image_urls: [],
   analysis: null,
@@ -57,7 +58,7 @@ const empty = (): Omit<Item, 'id' | 'created_at' | 'updated_at'> => ({
 
 export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
-  const [draft, setDraft] = useState(() => (item ? { ...empty(), ...item } : empty()))
+  const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -79,7 +80,7 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
   useEffect(() => {
     if (item) {
       setId(item.id || null)
-      setDraft({ ...empty(), ...item })
+      setDraft({ ...empty(accounts), ...item })
       skipNextSave.current = true
       setSaveState('idle')
     }
@@ -249,7 +250,7 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
   const reset = () => {
     skipNextSave.current = true
     setId(null)
-    setDraft(empty())
+    setDraft(empty(accounts))
     setSaveState('idle')
     setSavedAt(null)
   }
