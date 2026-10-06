@@ -11,8 +11,9 @@ import Accounts, { type Connection } from './components/Accounts'
 import Profiles from './components/Profiles'
 import type { Profile } from './api/profiles/route'
 import Dashboard from './components/Dashboard'
+import BatchComposer from './components/BatchComposer'
 
-type View = 'home' | 'compose' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts'
+type View = 'home' | 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -120,6 +121,7 @@ export default function Home() {
   const tabs: { key: View; label: string; count?: number }[] = [
     { key: 'home', label: '🏠 Home' },
     { key: 'compose', label: '✍️ Compose' },
+    { key: 'batch', label: '⚡ Batch' },
     { key: 'drafts', label: '📝 Drafts', count: drafts.length },
     { key: 'calendar', label: '📅 Calendar' },
     { key: 'queue', label: '🚀 Queue', count: scheduled.length },
@@ -182,7 +184,7 @@ export default function Home() {
             </div>
 
             <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-              <div className="grid grid-cols-7">
+              <div className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
                 {tabs.map((t) => {
                   const [icon, ...rest] = t.label.split(' ')
                   const active = view === t.key
@@ -210,6 +212,7 @@ export default function Home() {
             {view === 'compose' && (
               <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); setView('queue') }} />
             )}
+            {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); setView(n ? 'calendar' : 'drafts') }} />}
             {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
             {view === 'calendar' && <Calendar items={items.filter((i) => i.schedule_date)} onSelect={edit} />}
             {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}

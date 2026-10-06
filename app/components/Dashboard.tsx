@@ -9,7 +9,7 @@ interface Props {
   user: any
   items: Item[]
   connections: Connection[]
-  onGo: (view: 'compose' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts') => void
+  onGo: (view: 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'accounts') => void
   onEdit: (item: Item) => void
   onQuickPost: (text: string) => void
 }
@@ -75,6 +75,7 @@ export default function Dashboard({ user, items, connections, onGo, onEdit, onQu
             <div className="flex items-center gap-2 mt-2">
               <span className="text-xs text-gray-400">{quick.length} chars</span>
               <span className="flex-1" />
+              <button onClick={() => onGo('batch')} className="text-sm px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100">⚡ Batch</button>
               <button onClick={() => onGo('compose')} className="text-sm px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100">Full composer</button>
               <button onClick={() => quick.trim() && onQuickPost(quick)} disabled={!quick.trim()} className="sq-btn-primary text-sm px-4 py-2 rounded-lg font-semibold">Continue →</button>
             </div>
