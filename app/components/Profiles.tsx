@@ -79,7 +79,9 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
                     <span className="text-xs font-semibold">{cur.displayName || cur.handle}</span>
                     <span className="text-[11px] text-gray-400">· {timeAgo(p.createdAt)}</span>
                   </div>
+                  {p.label && <span className="text-[11px] text-gray-500">{p.label}</span>}
                   {p.text && <p className="text-sm text-gray-800 whitespace-pre-wrap line-clamp-6">{p.text}</p>}
+                  {!p.text && !p.image && <p className="text-sm text-gray-400 italic">No text or media returned for this post</p>}
                   {p.image && <img src={p.image} alt="" className="w-full rounded-lg object-cover max-h-56" />}
                   <div className="flex items-center gap-4 text-[11px] text-gray-500 mt-auto pt-1">
                     {p.likes != null && <span>♡ {n(p.likes)}</span>}

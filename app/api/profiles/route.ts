@@ -1,6 +1,6 @@
 import { userClient } from '../../lib/supabaseServer'
 
-export interface ProfilePost { id: string; text: string; url: string; createdAt: string; image?: string; likes?: number; replies?: number; reposts?: number }
+export interface ProfilePost { id: string; text: string; url: string; createdAt: string; image?: string; label?: string; likes?: number; replies?: number; reposts?: number }
 export interface Profile {
   platform: string; handle: string; displayName?: string; avatar?: string; bio?: string; url: string
   followers?: number; following?: number; postCount?: number; posts: ProfilePost[]; error?: string
@@ -28,13 +28,20 @@ async function threads(conn: any): Promise<Profile> {
   const tok = encodeURIComponent(conn.credentials.accessToken)
   const [me, th] = await Promise.all([
     fetch(`https://graph.threads.net/v1.0/me?fields=id,username,name,threads_profile_picture_url,threads_biography&access_token=${tok}`).then((r) => r.json()),
-    fetch(`https://graph.threads.net/v1.0/me/threads?fields=id,text,permalink,timestamp,media_type,media_url,thumbnail_url,children{media_url,thumbnail_url}&limit=25&access_token=${tok}`).then((r) => r.json()),
+    fetch(`https://graph.threads.net/v1.0/me/threads?fields=id,text,permalink,timestamp,media_type,media_url,thumbnail_url,is_quote_post,children{media_url,thumbnail_url,media_type}&limit=40&access_token=${tok}`).then((r) => r.json()),
   ])
   if (me.error) throw new Error(me.error.message)
-  const posts: ProfilePost[] = (th.data || []).map((t: any) => ({
-    id: t.id, text: t.text || '', url: t.permalink, createdAt: t.timestamp,
-    image: t.media_type === 'VIDEO' ? t.thumbnail_url : t.media_url || t.children?.data?.[0]?.media_url || t.children?.data?.[0]?.thumbnail_url,
-  }))
+  const posts: ProfilePost[] = (th.data || [])
+    .filter((t: any) => t.media_type !== 'REPOST_FACADE')
+    .map((t: any) => {
+      const child = t.children?.data?.[0]
+      const image = t.media_type === 'VIDEO' ? t.thumbnail_url
+        : t.media_type === 'CAROUSEL_ALBUM' ? (child?.media_type === 'VIDEO' ? child?.thumbnail_url : child?.media_url)
+        : t.media_url || t.thumbnail_url
+      const label = t.is_quote_post ? '↩ Quote post' : t.media_type === 'VIDEO' ? '▶ Video' : t.media_type === 'CAROUSEL_ALBUM' ? '🖼 Carousel' : !t.text && image ? '🖼 Image post' : ''
+      return { id: t.id, text: t.text || '', url: t.permalink, createdAt: t.timestamp, image, label }
+    })
+    .slice(0, 25)
   return { platform: 'threads', handle: me.username, displayName: me.name || me.username, avatar: me.threads_profile_picture_url, bio: me.threads_biography, url: `https://www.threads.net/@${me.username}`, posts }
 }
 
