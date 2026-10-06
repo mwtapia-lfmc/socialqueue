@@ -62,6 +62,9 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [rewriting, setRewriting] = useState(false)
+  const [toneOffer, setToneOffer] = useState<string | null>(null)
+  const [undoText, setUndoText] = useState<string | null>(null)
   const [showEvernote, setShowEvernote] = useState(false)
   const [notes, setNotes] = useState<any[] | null>(null)
   const [showSchedule, setShowSchedule] = useState(!!item?.schedule_date)
@@ -170,6 +173,21 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
   const addLink = () => {
     const url = window.prompt('Link URL')
     if (url) wrap('[', `](${url})`)
+  }
+
+  const rewriteInTone = async (tone: string) => {
+    if (!draft.content.trim()) return
+    setRewriting(true)
+    try {
+      const limit = draft.kind === 'post' ? Math.min(...selectedPlatforms.map((p) => PLATFORM_LIMITS[p]), 500) : undefined
+      const r = await fetch('/api/rewrite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: draft.content, tone, kind: draft.kind, limit }) })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error)
+      setUndoText(draft.content)
+      update({ content: d.text, tone })
+      setToneOffer(null)
+    } catch (e) { alert('Rewrite failed: ' + (e as Error).message) }
+    setRewriting(false)
   }
 
   const analyze = async () => {
@@ -306,7 +324,7 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
                 </div>
               )}
               <span className="mx-1 h-5 w-px bg-gray-200" />
-              <select value={draft.tone || 'casual'} onChange={(e) => update({ tone: e.target.value })}
+              <select value={draft.tone || 'casual'} onChange={(e) => { update({ tone: e.target.value }); setToneOffer(draft.content.trim() ? e.target.value : null) }}
                 className="h-8 text-sm bg-gray-50 border border-gray-200 rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                 {TONES.map((t) => <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)} tone</option>)}
               </select>
@@ -325,6 +343,20 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
               className="w-full p-4 text-[15px] leading-relaxed border border-gray-200 rounded-xl bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
             />
 
+            {(toneOffer || undoText) && (
+              <div className="flex flex-wrap items-center gap-2 mt-2 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2 sq-fade-in">
+                {toneOffer && <>
+                  <span className="text-xs text-indigo-900">Rewrite what you've written in a <strong>{toneOffer}</strong> tone?</span>
+                  <button type="button" onClick={() => rewriteInTone(toneOffer)} disabled={rewriting} className="sq-btn-primary text-xs px-3 py-1 rounded-md font-semibold">{rewriting ? <span className="sq-pulse">Rewriting…</span> : '✨ Rewrite'}</button>
+                  <button type="button" onClick={() => setToneOffer(null)} className="text-xs text-indigo-700 hover:underline">Keep mine</button>
+                </>}
+                {undoText && !toneOffer && <>
+                  <span className="text-xs text-indigo-900">Rewritten in a <strong>{draft.tone}</strong> tone.</span>
+                  <button type="button" onClick={() => { update({ content: undoText }); setUndoText(null) }} className="text-xs text-indigo-700 hover:underline">Undo</button>
+                  <button type="button" onClick={() => setUndoText(null)} className="text-xs text-gray-500 hover:underline">Dismiss</button>
+                </>}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
               <span className="text-gray-400">{countChars(draft.content)} chars</span>
               {draft.kind === 'post' && selectedPlatforms.map((p) => {
