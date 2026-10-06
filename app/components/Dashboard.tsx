@@ -71,7 +71,7 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
       {trends && trends.some((s) => s.trends.length) && (
         <div className="sq-card p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-800">📈 Trending now</h3>
+            <h3 className="text-sm font-semibold text-gray-800">📈 Trending now <span className="font-normal text-gray-400">· click to open the source, ✍ to write</span></h3>
             <button onClick={() => onGo('trends')} className="text-xs text-indigo-600 hover:underline">All trends →</button>
           </div>
           <div className="grid md:grid-cols-3 gap-4">
@@ -80,10 +80,13 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
                 <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{s.icon} {s.label}</p>
                 <ul className="space-y-1">
                   {s.trends.slice(0, 4).map((t, i) => (
-                    <li key={i} className="flex items-center gap-2 text-[13px]">
+                    <li key={i} className="group flex items-center gap-2 text-[13px]">
                       <span className="text-gray-300 font-bold w-3 shrink-0">{i + 1}</span>
-                      <button onClick={() => onQuickPost(`${t.topic}\n\n`)} title="Write about this" className="truncate text-left text-gray-800 hover:text-indigo-700 flex-1">{t.topic}</button>
+                      {t.url
+                        ? <a href={t.url} target="_blank" rel="noopener" title={t.summary ? `${t.summary}\n\nOpens source ↗` : 'Opens source ↗'} className="truncate text-left text-gray-800 hover:text-indigo-700 hover:underline flex-1">{t.topic}</a>
+                        : <span className="truncate text-gray-800 flex-1">{t.topic}</span>}
                       {t.count != null && <span className="text-[10px] text-gray-400 shrink-0">{t.count >= 1000 ? `${(t.count / 1000).toFixed(t.count >= 10000 ? 0 : 1)}k` : t.count}</span>}
+                      <button onClick={() => onQuickPost(`${t.topic}\n\n`)} title="Write about this" className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-indigo-100 hover:text-indigo-700 md:opacity-0 md:group-hover:opacity-100 transition">✍</button>
                     </li>
                   ))}
                 </ul>
