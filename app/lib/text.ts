@@ -1,15 +1,17 @@
-export type Platform = 'threads' | 'twitter' | 'bluesky'
+export type Platform = 'threads' | 'twitter' | 'bluesky' | 'linkedin'
 
 export const PLATFORM_LIMITS: Record<Platform, number> = {
   threads: 500,
   twitter: 280,
   bluesky: 300,
+  linkedin: 3000,
 }
 
 export const PLATFORM_META: Record<Platform, { label: string; icon: string; color: string }> = {
   threads: { label: 'Threads', icon: '🧵', color: 'bg-gray-900 text-white' },
   twitter: { label: 'X', icon: '𝕏', color: 'bg-black text-white' },
   bluesky: { label: 'Bluesky', icon: '🦋', color: 'bg-sky-500 text-white' },
+  linkedin: { label: 'LinkedIn', icon: 'in', color: 'bg-[#0a66c2] text-white' },
 }
 
 const escapeHtml = (s: string) =>

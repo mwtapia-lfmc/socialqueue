@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { authedFetch } from '../lib/api'
 import { PLATFORM_META, timeAgo, type Platform } from '../lib/text'
 import type { Profile, ProfilePost } from '../api/profiles/route'
@@ -18,19 +18,7 @@ const dayLabel = (key: string) => {
 
 export default function Profiles({ onRepurpose, onConnect }: Props) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null)
-  const [flash, setFlash] = useState<string | null>(null)
   const [mode, setMode] = useState<'columns' | 'timeline'>('timeline')
-  const colRefs = useRef<Record<string, HTMLDivElement | null>>({})
-
-  const jumpTo = (key: string) => {
-    setFlash(key)
-    for (const [platform, col] of Object.entries(colRefs.current)) {
-      if (!col) continue
-      const target = col.querySelector<HTMLElement>(`[data-day="${key}"]`)
-      if (target) col.scrollTo({ top: target.offsetTop - col.offsetTop - 8, behavior: 'smooth' })
-    }
-    setTimeout(() => setFlash(null), 1800)
-  }
 
   useEffect(() => {
     authedFetch('/api/profiles').then((r) => r.json()).then((d) => setProfiles(d.profiles || []))
@@ -49,8 +37,6 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
     const k = dayKey(p.createdAt); const m = days.get(k) || {}
     m[pr.platform as Platform] = (m[pr.platform as Platform] || 0) + 1; days.set(k, m)
   }
-  const dayList = Array.from(days.entries()).sort((a, b) => b[0].localeCompare(a[0]))
-
   const Toggle = (
     <div className="flex items-center gap-2 mb-4">
       <div className="flex gap-1 p-1 bg-white/70 border border-gray-200 rounded-full">
@@ -150,7 +136,7 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
   return (
     <div className="sq-fade-in">
     {Toggle}
-    <div className="grid gap-5 lg:[grid-template-columns:var(--cols)]" style={{ ["--cols" as any]: `repeat(${profiles.length}, minmax(0, 1fr)) 170px` }}>
+    <div className="grid gap-5" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(280px, 1fr))` }}>
       {profiles.map((cur) => {
         const meta = PLATFORM_META[cur.platform as Platform]
         return (
@@ -175,10 +161,10 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
               {cur.error && <p className="text-xs text-red-600 mt-2">Couldn't load: {cur.error}</p>}
             </div>
 
-            <div ref={(el) => { colRefs.current[cur.platform] = el }} className="sq-scroll overflow-y-auto pr-1 space-y-2 relative" style={{ maxHeight: '60vh' }}>
+            <div className="sq-scroll overflow-y-auto pr-1 space-y-2" style={{ maxHeight: '65vh' }}>
               {cur.posts.length === 0 && <p className="text-xs text-gray-400 px-1">No posts found.</p>}
               {cur.posts.map((p: ProfilePost) => (
-                <div key={p.id} data-day={dayKey(p.createdAt)} className={`sq-card p-3 flex flex-col gap-1.5 transition ${flash && flash === dayKey(p.createdAt) ? 'ring-2 ring-indigo-400' : ''}`}>
+                <div key={p.id} className="sq-card p-3 flex flex-col gap-1.5">
                   <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
                     {p.label && <span className="text-gray-500">{p.label}</span>}
                     <span className="ml-auto">{timeAgo(p.createdAt)}</span>
@@ -201,31 +187,6 @@ export default function Profiles({ onRepurpose, onConnect }: Props) {
         )
       })}
 
-      <section className="rounded-2xl p-3 sq-neutral flex flex-col min-w-0">
-        <div className="px-1 pb-3">
-          <h2 className="font-bold text-sm">Timeline</h2>
-          <p className="text-[11px] text-gray-500">Click a day to jump</p>
-        </div>
-        <div className="sq-scroll overflow-y-auto pr-1 relative" style={{ maxHeight: '60vh' }}>
-          <div className="absolute left-[9px] top-1 bottom-1 w-px bg-gradient-to-b from-indigo-300 via-purple-200 to-transparent" />
-          <ol className="space-y-1">
-            {dayList.map(([key, counts]) => (
-              <li key={key} className="relative pl-6">
-                <span className={`absolute left-[5px] top-2.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${flash === key ? 'bg-indigo-600 scale-125' : 'bg-indigo-400'} transition`} />
-                <button onClick={() => jumpTo(key)} className={`w-full text-left rounded-lg px-2 py-1.5 transition ${flash === key ? 'bg-indigo-100' : 'hover:bg-indigo-50'}`}>
-                  <div className="text-xs font-semibold text-gray-800 leading-tight">{dayLabel(key)}</div>
-                  <div className="flex gap-1 mt-1">
-                    {(Object.entries(counts) as [Platform, number][]).map(([pl, c]) => (
-                      <span key={pl} className={`text-[9px] px-1.5 py-0.5 rounded-full ${PLATFORM_META[pl].color}`} title={`${c} on ${PLATFORM_META[pl].label}`}>{PLATFORM_META[pl].icon}{c > 1 ? ` ${c}` : ''}</span>
-                    ))}
-                  </div>
-                </button>
-              </li>
-            ))}
-            {dayList.length === 0 && <li className="text-xs text-gray-400 pl-6">Nothing published yet.</li>}
-          </ol>
-        </div>
-      </section>
     </div>
     </div>
   )

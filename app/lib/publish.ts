@@ -87,6 +87,69 @@ async function publishToThreads(db: SupabaseClient, conn: any, text: string, ima
   return { ok: true, url: perm.permalink || `https://www.threads.net/@${conn.handle}` }
 }
 
+async function xRefreshIfNeeded(db: SupabaseClient, conn: any): Promise<string> {
+  const { accessToken, refreshToken, expiresAt } = conn.credentials
+  if (!refreshToken || new Date(expiresAt).getTime() - Date.now() > 5 * 60_000) return accessToken
+  const clientId = process.env.NEXT_PUBLIC_TWITTER_CLIENT_ID!, secret = process.env.TWITTER_CLIENT_SECRET || ''
+  const r = await fetch('https://api.twitter.com/2/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(secret ? { Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString('base64')}` } : {}) },
+    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: clientId }),
+  })
+  const j = await r.json()
+  if (!j.access_token) return accessToken
+  const next = { ...conn.credentials, accessToken: j.access_token, refreshToken: j.refresh_token || refreshToken, expiresAt: new Date(Date.now() + (j.expires_in || 7200) * 1000).toISOString() }
+  await db.from('connections').update({ credentials: next }).eq('id', conn.id)
+  return j.access_token
+}
+
+async function publishToX(db: SupabaseClient, conn: any, text: string, imageUrls: string[]): Promise<Result> {
+  const token = await xRefreshIfNeeded(db, conn)
+  const mediaIds: string[] = []
+  for (const u of imageUrls.slice(0, 4)) {
+    try {
+      const img = await fetch(u); const blob = await img.blob()
+      const form = new FormData()
+      form.append('media', blob, 'image.jpg'); form.append('media_category', 'tweet_image')
+      const up = await fetch('https://api.x.com/2/media/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
+      const uj = await up.json()
+      const id = uj.data?.id || uj.media_id_string
+      if (id) mediaIds.push(id)
+    } catch (e) { console.warn('X media upload failed, posting without it:', e) }
+  }
+  const body: any = { text }
+  if (mediaIds.length) body.media = { media_ids: mediaIds }
+  const r = await fetch('https://api.twitter.com/2/tweets', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const j = await r.json()
+  if (!j.data?.id) throw new Error(j.detail || j.title || j.errors?.[0]?.message || 'X rejected the post')
+  return { ok: true, url: `https://x.com/${conn.handle}/status/${j.data.id}` }
+}
+
+const LI_VERSION = process.env.LINKEDIN_API_VERSION || '202509'
+const liHeaders = (token: string) => ({ Authorization: `Bearer ${token}`, 'LinkedIn-Version': LI_VERSION, 'X-Restli-Protocol-Version': '2.0.0', 'Content-Type': 'application/json' })
+
+async function publishToLinkedIn(conn: any, text: string, imageUrls: string[]): Promise<Result> {
+  const token = conn.credentials.accessToken
+  if (new Date(conn.credentials.expiresAt).getTime() < Date.now()) throw new Error('LinkedIn token expired — reconnect in Accounts')
+  const author = `urn:li:person:${conn.account_id}`
+  const imageUrns: string[] = []
+  for (const u of imageUrls.slice(0, 9)) {
+    const init = await fetch('https://api.linkedin.com/rest/images?action=initializeUpload', { method: 'POST', headers: liHeaders(token), body: JSON.stringify({ initializeUploadRequest: { owner: author } }) }).then((r) => r.json())
+    const uploadUrl = init.value?.uploadUrl, urn = init.value?.image
+    if (!uploadUrl || !urn) continue
+    const bytes = await (await fetch(u)).arrayBuffer()
+    await fetch(uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' }, body: bytes })
+    imageUrns.push(urn)
+  }
+  const body: any = { author, commentary: text, visibility: 'PUBLIC', distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] }, lifecycleState: 'PUBLISHED', isReshareDisabledByAuthor: false }
+  if (imageUrns.length === 1) body.content = { media: { id: imageUrns[0] } }
+  else if (imageUrns.length > 1) body.content = { multiImage: { images: imageUrns.map((id) => ({ id })) } }
+  const r = await fetch('https://api.linkedin.com/rest/posts', { method: 'POST', headers: liHeaders(token), body: JSON.stringify(body) })
+  if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.message || `LinkedIn rejected the post (${r.status})`) }
+  const urn = r.headers.get('x-restli-id') || ''
+  return { ok: true, url: urn ? `https://www.linkedin.com/feed/update/${urn}` : 'https://www.linkedin.com/in/me/recent-activity/all/' }
+}
+
 export async function publishItem(db: SupabaseClient, item: any) {
   const { data: conns } = await db.from('connections').select('*').eq('user_id', item.user_id)
   const baseText = markdownToSocial(item.content)
@@ -99,6 +162,8 @@ export async function publishItem(db: SupabaseClient, item: any) {
     try {
       log[p] = p === 'bluesky' ? await publishToBluesky(conn, text, item.image_urls || [])
         : p === 'threads' ? await publishToThreads(db, conn, text, item.image_urls || [])
+        : p === 'twitter' ? await publishToX(db, conn, text, item.image_urls || [])
+        : p === 'linkedin' ? await publishToLinkedIn(conn, text, item.image_urls || [])
         : { ok: false, error: 'Publishing to this platform is not available yet' }
     } catch (e: any) {
       log[p] = { ok: false, error: String(e?.message || e) }

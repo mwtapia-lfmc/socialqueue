@@ -18,6 +18,14 @@ export default function Accounts({ connections, onChange }: Props) {
   const [thErr, setThErr] = useState<string | null>(null)
   const bluesky = connections.find((c) => c.platform === 'bluesky')
   const threads = connections.find((c) => c.platform === 'threads')
+  const twitter = connections.find((c) => c.platform === 'twitter')
+  const linkedin = connections.find((c) => c.platform === 'linkedin')
+
+  const oauth = async (path: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return alert('Sign in first')
+    window.location.href = `${path}?jwt=${encodeURIComponent(session.access_token)}`
+  }
 
   const connectThreadsToken = async () => {
     setThBusy(true); setThErr(null)
@@ -50,7 +58,7 @@ export default function Accounts({ connections, onChange }: Props) {
   }
 
   return (
-    <div className="grid md:grid-cols-3 gap-4 sq-fade-in">
+    <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 sq-fade-in">
       <div className="sq-card p-5 space-y-3">
         <div className="flex items-center gap-2"><span className="text-2xl">🦋</span><h3 className="font-semibold">Bluesky</h3>
           {bluesky && <span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>}</div>
@@ -72,9 +80,38 @@ export default function Accounts({ connections, onChange }: Props) {
         )}
       </div>
 
-      <div className="sq-card p-5 space-y-2 opacity-90">
-        <div className="flex items-center gap-2"><span className="text-2xl">𝕏</span><h3 className="font-semibold">X / Twitter</h3><span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Next up</span></div>
-        <p className="text-xs text-gray-500">Needs an X developer app (free tier allows posting). Once you have a Client ID and Secret from developer.x.com, connecting is a one-click OAuth login here.</p>
+      <div className="sq-card p-5 space-y-3">
+        <div className="flex items-center gap-2"><span className="text-2xl">𝕏</span><h3 className="font-semibold">X / Twitter</h3>
+          {twitter && <span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>}</div>
+        {twitter ? (
+          <>
+            <p className="text-sm text-gray-700">@{twitter.handle}</p>
+            <p className="text-xs text-gray-500">Posts publish here automatically. Token auto-renews.</p>
+            <button onClick={() => disconnect('twitter')} className="text-sm text-red-600 hover:underline">Disconnect</button>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500">Logs you into X and asks permission to post on your behalf.</p>
+            <button onClick={() => oauth('/api/auth/x')} className="w-full py-2 rounded-lg text-sm font-semibold bg-black text-white hover:bg-gray-800">Connect X</button>
+          </>
+        )}
+      </div>
+
+      <div className="sq-card p-5 space-y-3">
+        <div className="flex items-center gap-2"><span className="text-xl font-black text-[#0a66c2]">in</span><h3 className="font-semibold">LinkedIn</h3>
+          {linkedin && <span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>}</div>
+        {linkedin ? (
+          <>
+            <p className="text-sm text-gray-700">{linkedin.displayName || linkedin.handle}</p>
+            <p className="text-xs text-gray-500">Posts to your personal profile. Token lasts 60 days, then reconnect.</p>
+            <button onClick={() => disconnect('linkedin')} className="text-sm text-red-600 hover:underline">Disconnect</button>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500">Logs you into LinkedIn and asks permission to share posts to your profile.</p>
+            <button onClick={() => oauth('/api/auth/linkedin')} className="w-full py-2 rounded-lg text-sm font-semibold bg-[#0a66c2] text-white hover:brightness-110">Connect LinkedIn</button>
+          </>
+        )}
       </div>
 
       <div className="sq-card p-5 space-y-3">

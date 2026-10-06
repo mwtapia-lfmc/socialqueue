@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 export type RatioKey = 'square' | 'landscape' | 'portrait'
 
 export const RATIOS: Record<RatioKey, { label: string; w: number; h: number; maxWidth: number; hint: string; genSize: string }> = {
-  landscape: { label: 'Landscape 16:9', w: 16, h: 9, maxWidth: 1600, hint: 'X, Bluesky, blog header', genSize: '1536x1024' },
+  landscape: { label: 'Landscape 16:9', w: 16, h: 9, maxWidth: 1600, hint: 'X, Bluesky, LinkedIn, blog', genSize: '1536x1024' },
   portrait: { label: 'Portrait 4:5', w: 4, h: 5, maxWidth: 1080, hint: 'Threads feed', genSize: '1024x1536' },
   square: { label: 'Square 1:1', w: 1, h: 1, maxWidth: 1080, hint: 'Works everywhere', genSize: '1024x1024' },
 }
@@ -12,6 +12,7 @@ export const PLATFORM_RATIO: Record<string, RatioKey> = {
   threads: 'portrait',
   twitter: 'landscape',
   bluesky: 'landscape',
+  linkedin: 'landscape',
   blog: 'landscape',
 }
 

@@ -82,11 +82,11 @@ export default function Home() {
 
   const accounts = Object.fromEntries(connections.map((c) => [c.platform, { handle: c.handle, avatar: c.avatar, displayName: c.displayName }]))
   const repurpose = (text: string, platform: string) => {
-    setEditing({ id: '', kind: 'post', title: null, content: text, tone: 'casual', platforms: { threads: platform === 'threads', twitter: false, bluesky: platform === 'bluesky' }, hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '' } as unknown as Item)
+    setEditing({ id: '', kind: 'post', title: null, content: text, tone: 'casual', platforms: { threads: platform === 'threads', twitter: platform === 'twitter', bluesky: platform === 'bluesky', linkedin: platform === 'linkedin' }, hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '' } as unknown as Item)
     setView('compose')
   }
   const quickPost = (text: string) => {
-    setEditing({ id: '', kind: 'post', title: null, content: text, tone: 'casual', platforms: { threads: !!connections.find((c) => c.platform === 'threads'), twitter: false, bluesky: !!connections.find((c) => c.platform === 'bluesky') }, hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '' } as unknown as Item)
+    setEditing({ id: '', kind: 'post', title: null, content: text, tone: 'casual', platforms: Object.fromEntries(['threads', 'twitter', 'bluesky', 'linkedin'].map((p) => [p, !!connections.find((c) => c.platform === p)])), hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '' } as unknown as Item)
     setView('compose')
   }
   const drafts = items.filter((i) => i.status === 'draft')

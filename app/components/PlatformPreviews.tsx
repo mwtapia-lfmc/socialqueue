@@ -20,6 +20,7 @@ const SKIN: Record<Platform, { name: string; handle: string; bg: string; text: s
   threads: { name: 'you', handle: '1m', bg: 'bg-white', text: 'text-gray-900', sub: 'text-gray-400', actions: ['♡', '○', '↻', '➤'] },
   twitter: { name: 'You', handle: '@you · 1m', bg: 'bg-white', text: 'text-gray-900', sub: 'text-gray-500', actions: ['💬', '↻', '♡', '📊', '↗'] },
   bluesky: { name: 'You', handle: '@you.bsky.social · 1m', bg: 'bg-white', text: 'text-gray-900', sub: 'text-gray-500', actions: ['💬', '↻', '♡', '⋯'] },
+  linkedin: { name: 'You', handle: 'Your headline · 1m', bg: 'bg-white', text: 'text-gray-900', sub: 'text-gray-500', actions: ['👍 Like', '💬 Comment', '↻ Repost', '➤ Send'] },
 }
 
 const ALL = Object.keys(PLATFORM_META) as Platform[]

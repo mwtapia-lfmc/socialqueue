@@ -45,7 +45,7 @@ const empty = (): Omit<Item, 'id' | 'created_at' | 'updated_at'> => ({
   title: '',
   content: '',
   tone: 'casual',
-  platforms: { threads: true, twitter: false, bluesky: false },
+  platforms: { threads: true, twitter: false, bluesky: false, linkedin: false },
   hashtags: [],
   image_urls: [],
   analysis: null,

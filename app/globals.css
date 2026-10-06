@@ -122,3 +122,4 @@ body {
 .sq-tint-twitter { background: linear-gradient(180deg, rgba(226, 232, 240, 0.75), rgba(226, 232, 240, 0.35)); border: 1px solid rgba(203, 213, 225, 0.6); }
 .sq-tint-bluesky { background: linear-gradient(180deg, rgba(224, 242, 254, 0.8), rgba(224, 242, 254, 0.35)); border: 1px solid rgba(186, 230, 253, 0.6); }
 .sq-neutral { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(229, 231, 235, 0.9); }
+.sq-tint-linkedin { background: linear-gradient(180deg, rgba(219, 234, 254, 0.8), rgba(219, 234, 254, 0.35)); border: 1px solid rgba(191, 219, 254, 0.6); }
