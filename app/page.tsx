@@ -256,7 +256,7 @@ export default function Home() {
 
                 {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
                 {view === 'compose' && (
-                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}

@@ -45,7 +45,7 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
         </div>
         <div className="flex gap-2">
           {connections.map((c) => (
-            <button key={c.platform} onClick={() => onGo('profiles')} title={`@${c.handle}`} className="relative">
+            <button key={c.id} onClick={() => onGo('profiles')} title={`@${c.handle}`} className="relative">
               {c.avatar ? <img src={c.avatar} alt="" className="h-9 w-9 rounded-full object-cover border-2 border-white shadow" /> : <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />}
               <span className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full text-[9px] flex items-center justify-center ring-2 ring-white ${PLATFORM_META[c.platform as Platform]?.color}`}>{PLATFORM_META[c.platform as Platform]?.icon}</span>
             </button>

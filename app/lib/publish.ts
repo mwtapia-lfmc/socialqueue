@@ -151,7 +151,7 @@ async function publishToLinkedIn(conn: any, text: string, imageUrls: string[]): 
 }
 
 export async function publishItem(db: SupabaseClient, item: any, opts: { stagger?: boolean } = {}) {
-  const { data: conns } = await db.from('connections').select('*').eq('user_id', item.user_id)
+  const { data: conns } = await db.from('connections').select('*').eq('user_id', item.user_id).order('created_at', { ascending: true })
   const baseText = markdownToSocial(item.content)
   const log: Record<string, Result> = { ...(item.publish_log || {}) }
   const targets = Object.keys(item.platforms || {}).filter((k) => item.platforms[k] && !log[k]?.ok)
@@ -159,7 +159,8 @@ export async function publishItem(db: SupabaseClient, item: any, opts: { stagger
   const batch = opts.stagger ? targets.slice(0, 1) : targets
 
   for (const p of batch) {
-    const conn = conns?.find((c) => c.platform === p)
+    const chosen = item.accounts?.[p]
+    const conn = conns?.find((c) => c.platform === p && c.id === chosen) || conns?.find((c) => c.platform === p)
     if (!conn) { log[p] = { ok: false, error: 'Account not connected' }; continue }
     const text = item.overrides?.[p] ?? baseText
     try {

@@ -1,5 +1,6 @@
 import { AtpAgent } from '@atproto/api'
 import { userClient } from '../../lib/supabaseServer'
+import { saveConnection } from '../../lib/connections'
 
 async function fetchProfile(conn: any): Promise<{ avatar?: string; displayName?: string } | null> {
   try {
@@ -19,7 +20,7 @@ async function fetchProfile(conn: any): Promise<{ avatar?: string; displayName?:
 
 export async function GET(request: Request) {
   const db = userClient(request)
-  const { data, error } = await db.from('connections').select('id, platform, handle, account_id, credentials, created_at')
+  const { data, error } = await db.from('connections').select('id, platform, handle, account_id, credentials, created_at').order('created_at', { ascending: true })
   if (error) return Response.json({ error: error.message }, { status: 401 })
 
   const out = []
@@ -51,11 +52,8 @@ export async function POST(request: Request) {
     const me = await meRes.json()
     if (!me.id) return Response.json({ error: 'Threads rejected the token: ' + (me.error?.message || 'check that you copied the whole thing') }, { status: 400 })
     const expiresAt = new Date(Date.now() + 60 * 86400_000).toISOString()
-    const { error } = await db.from('connections').upsert(
-      { user_id: user.id, platform, handle: me.username, account_id: me.id, credentials: { accessToken: accessToken.trim(), expiresAt } },
-      { onConflict: 'user_id,platform' }
-    )
-    if (error) return Response.json({ error: error.message }, { status: 500 })
+    const { error } = await saveConnection(db, { user_id: user.id, platform, handle: me.username, account_id: me.id, credentials: { accessToken: accessToken.trim(), expiresAt } })
+    if (error) return Response.json({ error }, { status: 500 })
     return Response.json({ ok: true, handle: me.username })
   }
 
@@ -69,18 +67,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Bluesky rejected the login: ' + (e?.message || 'check handle and app password') }, { status: 400 })
   }
 
-  const { error } = await db.from('connections').upsert(
-    { user_id: user.id, platform, handle: agent.session!.handle, account_id: agent.session!.did, credentials: { appPassword } },
-    { onConflict: 'user_id,platform' }
-  )
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  const { error } = await saveConnection(db, { user_id: user.id, platform, handle: agent.session!.handle, account_id: agent.session!.did, credentials: { appPassword } })
+  if (error) return Response.json({ error }, { status: 500 })
   return Response.json({ ok: true, handle: agent.session!.handle })
 }
 
 export async function DELETE(request: Request) {
   const db = userClient(request)
-  const { platform } = await request.json()
-  const { error } = await db.from('connections').delete().eq('platform', platform)
+  const { id, platform } = await request.json()
+  const q = db.from('connections').delete()
+  const { error } = await (id ? q.eq('id', id) : q.eq('platform', platform))
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ ok: true })
 }

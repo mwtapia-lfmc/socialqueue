@@ -20,6 +20,7 @@ const SECTIONS: { id: string; icon: string; title: string; body: (go: (v: any) =
       <li><strong>Tone dropdown</strong> — change it with text present and you'll be offered an AI rewrite in that voice. Undo is one click.</li>
       <li><strong>Autosave:</strong> everything you type is saved as a draft within a second (status dot top-right). <strong>+ New</strong> starts fresh.</li>
       <li><strong>Platform pills</strong> under the text: green dot = will publish there. Each platform's character limit is shown live (Threads 500 · X 280 · Bluesky 300 · LinkedIn 3000).</li>
+      <li><strong>Multiple accounts:</strong> connect more than one account per platform in Accounts. When a platform has two or more, a "posts as" dropdown appears under the pills so each post picks which account it goes from; the preview shows that account's avatar and handle. Needs the multi-account SQL (MIGRATION.md block 5).</li>
       <li><strong>Live previews</strong> (right side, or below on phone): one card per platform showing your real avatar and handle. <strong>Click a card's text</strong> to write a custom version for just that platform — it gets a "Customized" badge; Reset returns it to the shared text.</li>
       <li><strong>✨ Analyze</strong> scores engagement, suggests hashtags and headlines, and recommends a time. Click a hashtag to insert it; click a headline to use it.</li>
       <li><strong>🐘 Evernote</strong> opens an import panel (sample notes until Evernote credentials exist).</li>

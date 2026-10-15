@@ -2,7 +2,7 @@ import { userClient } from '../../lib/supabaseServer'
 
 export interface ProfilePost { id: string; text: string; url: string; createdAt: string; image?: string; label?: string; likes?: number; replies?: number; reposts?: number }
 export interface Profile {
-  platform: string; handle: string; displayName?: string; avatar?: string; bio?: string; url: string
+  connectionId?: string; platform: string; handle: string; displayName?: string; avatar?: string; bio?: string; url: string
   followers?: number; following?: number; postCount?: number; posts: ProfilePost[]; error?: string
 }
 
@@ -74,14 +74,14 @@ export async function GET(request: Request) {
   const TTL = 10 * 60_000
   const profiles = await Promise.all((data || []).map(async (c) => {
     const cached = c.credentials?.profileCache
-    if (!fresh && cached?.at && Date.now() - new Date(cached.at).getTime() < TTL) return cached.data as Profile
+    if (!fresh && cached?.at && Date.now() - new Date(cached.at).getTime() < TTL) return { ...cached.data, connectionId: c.id } as Profile
     try {
       const prof = c.platform === 'bluesky' ? await bluesky(c) : c.platform === 'threads' ? await threads(c) : c.platform === 'twitter' ? await twitter(c) : c.platform === 'linkedin' ? await linkedin(c) : null
       if (prof) await db.from('connections').update({ credentials: { ...c.credentials, avatar: prof.avatar || c.credentials?.avatar, displayName: prof.displayName || c.credentials?.displayName, profileAt: new Date().toISOString(), profileCache: { at: new Date().toISOString(), data: prof } } }).eq('id', c.id)
-      return prof
+      return prof ? { ...prof, connectionId: c.id } : prof
     } catch (e: any) {
-      if (cached?.data) return { ...cached.data, error: undefined } as Profile
-      return { platform: c.platform, handle: c.handle, url: '', posts: [], error: String(e?.message || e) } as Profile
+      if (cached?.data) return { ...cached.data, connectionId: c.id, error: undefined } as Profile
+      return { connectionId: c.id, platform: c.platform, handle: c.handle, url: '', posts: [], error: String(e?.message || e) } as Profile
     }
   }))
   return Response.json({ profiles: profiles.filter(Boolean) })

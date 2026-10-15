@@ -98,3 +98,13 @@ $$);
 ```sql
 ALTER TABLE items ADD COLUMN overrides JSONB NOT NULL DEFAULT '{}';
 ```
+
+## 5. Multiple accounts per platform
+
+Lets one platform hold several connected accounts, and lets each post choose which account it publishes from.
+
+```sql
+ALTER TABLE connections DROP CONSTRAINT IF EXISTS connections_user_id_platform_key;
+ALTER TABLE connections ADD CONSTRAINT connections_user_platform_account_key UNIQUE (user_id, platform, account_id);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS accounts JSONB NOT NULL DEFAULT '{}';
+```

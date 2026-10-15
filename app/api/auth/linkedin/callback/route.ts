@@ -1,4 +1,5 @@
 import { fail, finishOAuth, redirectClearing, userFromJwt } from '../../../../lib/oauth'
+import { saveConnection } from '../../../../lib/connections'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -19,10 +20,10 @@ export async function GET(request: Request) {
   const me = await fetch('https://api.linkedin.com/v2/userinfo', { headers: { Authorization: `Bearer ${tok.access_token}` } }).then((r) => r.json())
   if (!me.sub) return fail(url.origin, 'Could not read LinkedIn profile')
 
-  const { error } = await db.from('connections').upsert({
+  const { error } = await saveConnection(db, {
     user_id: user.id, platform: 'linkedin', handle: (me.name || 'linkedin').replace(/\s+/g, '').toLowerCase(), account_id: me.sub,
     credentials: { accessToken: tok.access_token, refreshToken: tok.refresh_token, expiresAt: new Date(Date.now() + (tok.expires_in || 5184000) * 1000).toISOString(), avatar: me.picture, displayName: me.name, profileAt: new Date().toISOString() },
-  }, { onConflict: 'user_id,platform' })
-  if (error) return fail(url.origin, error.message)
+  })
+  if (error) return fail(url.origin, error)
   return redirectClearing(`${url.origin}/?connected=linkedin`)
 }

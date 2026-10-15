@@ -7,6 +7,7 @@ import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToS
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
 import PlatformPreviews, { type Identity } from './PlatformPreviews'
+import type { Connection } from './Accounts'
 
 export interface Item {
   id: string
@@ -19,6 +20,7 @@ export interface Item {
   image_urls: string[] | null
   analysis: any
   overrides?: Record<string, string> | null
+  accounts?: Record<string, string> | null
   status: 'draft' | 'scheduled' | 'published' | 'failed'
   published_at?: string | null
   publish_log?: Record<string, { ok: boolean; url?: string; error?: string }> | null
@@ -31,6 +33,7 @@ export interface Item {
 interface Props {
   userId: string
   accounts?: Partial<Record<Platform, Identity>>
+  connections?: Connection[]
   item: Item | null
   onSaved: (item: Item) => void
   onScheduled: () => void
@@ -51,12 +54,13 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   image_urls: [],
   analysis: null,
   overrides: {},
+  accounts: {},
   status: 'draft',
   schedule_date: null,
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -104,6 +108,7 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
         image_urls: draft.image_urls,
         analysis: draft.analysis,
         overrides: draft.overrides || {},
+        accounts: draft.accounts || {},
         updated_at: new Date().toISOString(),
         ...extra,
       }
@@ -113,12 +118,12 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
         : supabase.from('items').insert(payload).select().single()
       let { data, error } = await q
       if (!error) setSaveError(null)
-      if (error && /overrides/.test(error.message)) {
-        const { overrides: _o, ...withoutOverrides } = payload
-        setSaveError('per-platform edits not stored until DB is updated')
+      if (error && /overrides|accounts/.test(error.message)) {
+        const { overrides: _o, accounts: _a, ...slim } = payload
+        setSaveError('per-platform edits / account choice not stored until the DB is updated')
         ;({ data, error } = await (id
-          ? supabase.from('items').update(withoutOverrides).eq('id', id).select().single()
-          : supabase.from('items').insert(withoutOverrides).select().single()))
+          ? supabase.from('items').update(slim).eq('id', id).select().single()
+          : supabase.from('items').insert(slim).select().single()))
       }
       if (error) {
         console.error('Save failed:', error)
@@ -256,6 +261,9 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
   }
 
   const selectedPlatforms = PLATFORMS.filter((p) => draft.platforms[p])
+  const connsFor = (p: Platform) => connections.filter((c) => c.platform === p)
+  const chosenConn = (p: Platform) => connsFor(p).find((c) => c.id === draft.accounts?.[p]) || connsFor(p)[0]
+  const identities = Object.fromEntries(PLATFORMS.flatMap((p) => { const c = chosenConn(p); return c ? [[p, { handle: c.handle, avatar: c.avatar, displayName: c.displayName }]] : [] })) as Partial<Record<Platform, Identity>>
   const socialText = markdownToSocial(draft.content)
   const effectiveText = (p: Platform) => draft.overrides?.[p] ?? socialText
   const previewRatio = RATIOS[PLATFORM_RATIO[draft.kind === 'blog' ? 'blog' : selectedPlatforms[0] || 'threads']]
@@ -404,6 +412,15 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
                   {PLATFORM_META[p].icon} {PLATFORM_META[p].label}
                 </button>
               ))}
+              {PLATFORMS.filter((p) => draft.platforms[p] && connsFor(p).length > 1).map((p) => (
+                <label key={`acct-${p}`} className="basis-full flex items-center gap-2 text-xs text-gray-600">
+                  <span>{PLATFORM_META[p].icon} {PLATFORM_META[p].label} posts as</span>
+                  <select value={chosenConn(p)?.id} onChange={(e) => update({ accounts: { ...(draft.accounts || {}), [p]: e.target.value } })}
+                    className="h-8 text-sm bg-white border border-gray-200 rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    {connsFor(p).map((c) => <option key={c.id} value={c.id}>@{c.handle}{c.displayName ? ` — ${c.displayName}` : ''}</option>)}
+                  </select>
+                </label>
+              ))}
             </div>
           )}
 
@@ -436,7 +453,7 @@ export default function UnifiedComposer({ userId, accounts = {}, item, onSaved, 
             </div>
           ) : (
             <PlatformPreviews
-              accounts={accounts}
+              accounts={connections.length ? identities : accounts}
               selected={draft.platforms}
               onToggle={(p) => update({ platforms: { ...draft.platforms, [p]: !draft.platforms[p] } })}
               baseText={socialText}

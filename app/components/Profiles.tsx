@@ -73,7 +73,7 @@ export default function Profiles({ profiles, loading, onRefresh, onRepurpose, on
             {profiles.map((pr) => {
               const meta = PLATFORM_META[pr.platform as Platform]
               return (
-                <div key={pr.platform} className="flex items-center gap-2 min-w-0">
+                <div key={pr.connectionId || pr.platform} className="flex items-center gap-2 min-w-0">
                   {pr.avatar ? <img src={pr.avatar} alt="" className="h-7 w-7 rounded-full object-cover" /> : <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />}
                   <div className="min-w-0 leading-tight"><p className="text-xs font-semibold truncate">{pr.displayName || pr.handle}</p><p className="text-[10px] text-gray-500 truncate">{meta.icon} @{pr.handle}</p></div>
                 </div>
@@ -86,7 +86,7 @@ export default function Profiles({ profiles, loading, onRefresh, onRepurpose, on
             {rows.map((row) =>
               row.quiet ? (
                 <div key={row.key} className="grid gap-x-3 items-stretch" style={{ gridTemplateColumns: cols, height: Math.min(14 + row.quiet * 7, 90) }}>
-                  {profiles.map((pr) => <div key={pr.platform} className="border-l border-dashed border-gray-200 ml-3" />)}
+                  {profiles.map((pr) => <div key={pr.connectionId || pr.platform} className="border-l border-dashed border-gray-200 ml-3" />)}
                   <div className="text-[9px] text-gray-300 text-right pr-1 self-center">{row.quiet} quiet day{row.quiet > 1 ? 's' : ''}</div>
                 </div>
               ) : (
@@ -96,7 +96,7 @@ export default function Profiles({ profiles, loading, onRefresh, onRepurpose, on
                   {profiles.map((pr) => {
                     const ps = postsOn(pr, row.key)
                     return (
-                      <div key={pr.platform} className="min-w-0 space-y-1">
+                      <div key={pr.connectionId || pr.platform} className="min-w-0 space-y-1">
                         {ps.map((p) => (
                           <a key={p.id} href={p.url} target="_blank" rel="noopener" className={`block rounded-lg px-2 py-1.5 sq-tint-${pr.platform} hover:brightness-95 transition`}>
                             <div className="flex items-start gap-1.5">
@@ -135,7 +135,7 @@ export default function Profiles({ profiles, loading, onRefresh, onRepurpose, on
       {profiles.map((cur) => {
         const meta = PLATFORM_META[cur.platform as Platform]
         return (
-          <section key={cur.platform} className={`rounded-2xl p-3 sq-tint-${cur.platform} flex flex-col min-w-0`}>
+          <section key={cur.connectionId || cur.platform} className={`rounded-2xl p-3 sq-tint-${cur.platform} flex flex-col min-w-0`}>
             <div className="sq-card p-4 mb-3">
               <div className="flex items-start gap-3">
                 {cur.avatar ? <img src={cur.avatar} alt="" className="h-12 w-12 rounded-full object-cover border-2 border-white shadow shrink-0" /> : <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shrink-0" />}

@@ -1,4 +1,5 @@
 import { fail, finishOAuth, readCookie, redirectClearing, userFromJwt } from '../../../../lib/oauth'
+import { saveConnection } from '../../../../lib/connections'
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -23,10 +24,10 @@ export async function GET(request: Request) {
   const me = (await meRes.json()).data
   if (!me?.id) return fail(url.origin, 'Could not read X profile')
 
-  const { error } = await db.from('connections').upsert({
+  const { error } = await saveConnection(db, {
     user_id: user.id, platform: 'twitter', handle: me.username, account_id: me.id,
     credentials: { accessToken: tok.access_token, refreshToken: tok.refresh_token, expiresAt: new Date(Date.now() + (tok.expires_in || 7200) * 1000).toISOString(), avatar: me.profile_image_url?.replace('_normal', '_400x400'), displayName: me.name, profileAt: new Date().toISOString() },
-  }, { onConflict: 'user_id,platform' })
-  if (error) return fail(url.origin, error.message)
+  })
+  if (error) return fail(url.origin, error)
   return redirectClearing(`${url.origin}/?connected=twitter`)
 }

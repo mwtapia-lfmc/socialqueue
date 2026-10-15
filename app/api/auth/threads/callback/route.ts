@@ -1,5 +1,6 @@
 import { userClient } from '../../../../lib/supabaseServer'
 import { finishOAuth, redirectClearing } from '../../../../lib/oauth'
+import { saveConnection } from '../../../../lib/connections'
 
 const back = (origin: string, q: string) => Response.redirect(`${origin}/?${q}`, 302)
 
@@ -41,10 +42,7 @@ export async function GET(request: Request) {
   const me = await meRes.json()
   if (!me.id) return back(url.origin, 'connect_error=Could+not+read+Threads+profile')
 
-  const { error } = await db.from('connections').upsert(
-    { user_id: user.id, platform: 'threads', handle: me.username, account_id: me.id, credentials: { accessToken: token, expiresAt } },
-    { onConflict: 'user_id,platform' }
-  )
-  if (error) return back(url.origin, `connect_error=${encodeURIComponent(error.message)}`)
+  const { error } = await saveConnection(db, { user_id: user.id, platform: 'threads', handle: me.username, account_id: me.id, credentials: { accessToken: token, expiresAt } })
+  if (error) return back(url.origin, `connect_error=${encodeURIComponent(error)}`)
   return redirectClearing(`${url.origin}/?connected=threads`)
 }
