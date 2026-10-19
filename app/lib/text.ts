@@ -38,7 +38,7 @@ export function markdownToHtml(md: string): string {
     }
     if (inList) { out.push('</ul>'); inList = false }
     if (/^## /.test(line)) out.push(`<h2>${inline(line.slice(3))}</h2>`)
-    else if (/^> /.test(line)) out.push(`<blockquote>${inline(line.slice(2))}</blockquote>`)
+    else if (/^&gt; /.test(line)) out.push(`<blockquote>${inline(line.slice(5))}</blockquote>`)
     else if (line === '') out.push('')
     else out.push(`<p>${inline(line)}</p>`)
   }

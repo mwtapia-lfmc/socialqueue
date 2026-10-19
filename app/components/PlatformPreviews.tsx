@@ -16,6 +16,9 @@ interface Props {
   onOverride: (platform: Platform, text: string | null) => void
 }
 
+const LI_CUT = 210
+const cutAtWord = (t: string) => t.slice(0, LI_CUT).replace(/\s+\S*$/, '')
+
 const SKIN: Record<Platform, { name: string; handle: string; bg: string; text: string; sub: string; actions: string[] }> = {
   threads: { name: 'you', handle: '1m', bg: 'bg-white', text: 'text-gray-900', sub: 'text-gray-400', actions: ['♡', '○', '↻', '➤'] },
   twitter: { name: 'You', handle: '@you · 1m', bg: 'bg-white', text: 'text-gray-900', sub: 'text-gray-500', actions: ['💬', '↻', '♡', '📊', '↗'] },
@@ -27,6 +30,7 @@ const ALL = Object.keys(PLATFORM_META) as Platform[]
 
 export default function PlatformPreviews({ accounts, selected, onToggle, baseText, overrides, image, onOverride }: Props) {
   const [editing, setEditing] = useState<Platform | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const [buffer, setBuffer] = useState('')
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -76,7 +80,7 @@ export default function PlatformPreviews({ accounts, selected, onToggle, baseTex
                   : <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 shrink-0" />}
                 <div className="leading-tight min-w-0">
                   <p className={`text-sm font-semibold truncate ${skin.text}`}>{acct?.displayName || acct?.handle || skin.name}</p>
-                  <p className={`text-[11px] truncate ${skin.sub}`}>{acct ? `@${acct.handle} · now` : skin.handle}</p>
+                  <p className={`text-[11px] truncate ${skin.sub}`}>{acct ? `@${acct.handle} · now` : skin.handle}{p === 'linkedin' ? ' · 🌐' : ''}</p>
                 </div>
                 {!acct && <span className="ml-auto text-[10px] text-gray-400 shrink-0">not connected</span>}
               </div>
@@ -93,13 +97,21 @@ export default function PlatformPreviews({ accounts, selected, onToggle, baseTex
                   </div>
                 </>
               ) : (
-                <button type="button" onClick={() => begin(p)} title={`Click to edit the ${meta.label} version`}
-                  className={`w-full text-left text-[15px] leading-relaxed whitespace-pre-wrap break-words ${skin.text} min-h-6 rounded-lg -m-1 p-1 hover:bg-indigo-50/60 cursor-text`}>
-                  {text || <span className="text-gray-300">Your post will appear here…</span>}
-                </button>
+                <>
+                  <button type="button" onClick={() => begin(p)} title={`Click to edit the ${meta.label} version`}
+                    className={`w-full text-left text-[15px] leading-relaxed whitespace-pre-wrap break-words ${skin.text} min-h-6 rounded-lg -m-1 p-1 hover:bg-indigo-50/60 cursor-text`}>
+                    {text ? (p === 'linkedin' && !expanded && text.length > LI_CUT ? cutAtWord(text) + '…' : text) : <span className="text-gray-300">Your post will appear here…</span>}
+                  </button>
+                  {p === 'linkedin' && text.length > LI_CUT && (
+                    <button type="button" onClick={() => setExpanded((v) => !v)} className="text-[14px] text-gray-500 hover:text-[#0a66c2] hover:underline mt-1">{expanded ? 'see less' : '…see more'}</button>
+                  )}
+                  {p === 'linkedin' && text.length > LI_CUT && !expanded && (
+                    <p className="text-[11px] text-amber-700 bg-amber-50 rounded-md px-2 py-1 mt-2">LinkedIn only shows the first ~{LI_CUT} characters before “see more” — put your hook up front.</p>
+                  )}
+                </>
               )}
               {image && <img src={image} alt="" className="w-full rounded-xl mt-3 object-cover border border-gray-100 max-h-80" />}
-              <div className={`flex gap-6 mt-3 text-sm ${skin.sub}`}>{skin.actions.map((a, i) => <span key={i}>{a}</span>)}</div>
+              <div className={`flex ${p === 'linkedin' ? 'justify-between border-t border-gray-100 pt-2 text-[13px] font-medium' : 'gap-6 text-sm'} mt-3 ${skin.sub}`}>{skin.actions.map((a, i) => <span key={i}>{a}</span>)}</div>
             </div>
           </div>
         )

@@ -7,6 +7,7 @@ import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToS
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
 import PlatformPreviews, { type Identity } from './PlatformPreviews'
+import SubstackPreview from './SubstackPreview'
 import type { Connection } from './Accounts'
 
 export interface Item {
@@ -442,15 +443,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
           </div>
 
           {draft.kind === 'blog' ? (
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />
-                <div><p className="text-sm font-semibold leading-tight">You</p><p className="text-[11px] text-gray-400">Blog draft</p></div>
-              </div>
-              {draft.title && <h1 className="text-xl font-bold mb-2">{draft.title}</h1>}
-              {firstImage && <img src={firstImage} alt="" className="w-full rounded-xl mb-3 object-cover max-h-80" />}
-              <div className="sq-preview text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: markdownToHtml(draft.content) || '<p class="text-gray-300">Your blog will render here…</p>' }} />
-            </div>
+            <SubstackPreview title={draft.title || ''} content={draft.content} image={firstImage} author={Object.values(identities)[0]} />
           ) : (
             <PlatformPreviews
               accounts={connections.length ? identities : accounts}

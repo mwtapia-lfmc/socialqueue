@@ -123,3 +123,12 @@ body {
 .sq-tint-bluesky { background: linear-gradient(180deg, rgba(224, 242, 254, 0.8), rgba(224, 242, 254, 0.35)); border: 1px solid rgba(186, 230, 253, 0.6); }
 .sq-neutral { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(229, 231, 235, 0.9); }
 .sq-tint-linkedin { background: linear-gradient(180deg, rgba(219, 234, 254, 0.8), rgba(219, 234, 254, 0.35)); border: 1px solid rgba(191, 219, 254, 0.6); }
+
+.sq-substack { font-family: Georgia, 'Times New Roman', serif; font-size: 17px; line-height: 1.72; color: #1f1f1f; }
+.sq-substack p { margin: 0 0 1.05em; }
+.sq-substack h2 { font-size: 1.45em; line-height: 1.25; font-weight: 700; margin: 1.5em 0 0.5em; }
+.sq-substack ul { list-style: disc; padding-left: 1.4em; margin: 0 0 1.05em; }
+.sq-substack li { margin: 0.25em 0; }
+.sq-substack blockquote { border-left: 3px solid #ff6719; padding-left: 1em; margin: 1.2em 0; color: #4a4a4a; font-style: italic; }
+.sq-substack a { color: #ff6719; text-decoration: underline; }
+.sq-substack strong { font-weight: 700; }
