@@ -1,8 +1,10 @@
+import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
 const fallbackSplit = (raw: string) => raw.split(/\n\s*\n|^\s*---\s*$/m).map((s) => s.trim()).filter(Boolean)
 
 export async function POST(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   const { raw, tone = 'casual', limit = 280, target } = await request.json()
   if (!raw?.trim()) return Response.json({ error: 'Nothing to split' }, { status: 400 })
   const apiKey = process.env.ANTHROPIC_API_KEY

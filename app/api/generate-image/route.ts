@@ -1,3 +1,4 @@
+import { requireUser, signInFirst } from '../../lib/requireUser'
 import OpenAI from 'openai'
 
 type GenSize = '1024x1024' | '1536x1024' | '1024x1536'
@@ -20,6 +21,7 @@ function placeholderSvg(prompt: string, size: GenSize) {
 }
 
 export async function POST(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   try {
     const { prompt, size = '1024x1024' } = (await request.json()) as { prompt: string; size?: GenSize }
     if (!prompt) return Response.json({ error: 'Prompt required' }, { status: 400 })

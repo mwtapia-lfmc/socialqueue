@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from '../lib/api'
 import { useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToSocial, formatTime, parseYmd, type Platform } from '../lib/text'
@@ -43,7 +44,7 @@ export default function BatchComposer({ userId, connections, onDone }: Props) {
   const splitAI = async () => {
     setSplitting(true)
     try {
-      const r = await fetch('/api/batch-split', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ raw, limit: minLimit }) })
+      const r = await authedFetch('/api/batch-split', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ raw, limit: minLimit }) })
       const d = await r.json()
       setDrafts(toDrafts(d.posts || splitManual())); setStep(2)
     } catch { setDrafts(toDrafts(splitManual())); setStep(2) }

@@ -56,7 +56,7 @@ export default function Trends({ regions, onRegion, sources, note, loading, onRe
   const voiceSamples = (profiles || []).flatMap((p) => p.posts.map((x) => x.text).filter(Boolean)).slice(0, 6)
   const getAngles = async (t: Trend) => {
     setAngles((a) => ({ ...a, [t.topic]: 'loading' }))
-    const r = await fetch('/api/trend-angles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: t.topic, detail: t.summary, voiceSamples }) })
+    const r = await authedFetch('/api/trend-angles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: t.topic, detail: t.summary, voiceSamples }) })
     const d = await r.json(); setAngles((a) => ({ ...a, [t.topic]: d.angles || [] }))
   }
 

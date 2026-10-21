@@ -1,6 +1,8 @@
+import { requireUser, signInFirst } from '../../lib/requireUser'
 import OpenAI, { toFile } from 'openai'
 
 export async function POST(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   try {
     const form = await request.formData()
     const image = form.get('image')

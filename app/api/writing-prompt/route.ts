@@ -1,6 +1,8 @@
+import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   const { format = 'note', trend, series, bucket, tags = [], angle, previous = [], voiceSamples = [], notes = [] } = await request.json()
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return Response.json({ error: 'AI not configured' }, { status: 500 })

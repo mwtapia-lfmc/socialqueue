@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from '../lib/api'
 import { useState } from 'react'
 import { timeAgo } from '../lib/text'
 import { seriesEmoji, type StructureData } from '../lib/structure'
@@ -40,7 +41,7 @@ export default function Brainstorm({ items, notes = [], drafts = [], trends = nu
         ...items.map((i) => ({ where: 'idea', title: i.title || i.content.slice(0, 80), text: '' })),
         ...drafts.map((i) => ({ where: 'draft', title: i.title || i.content.slice(0, 80), text: i.content.slice(0, 250) })),
       ].slice(0, 40)
-      const r = await fetch('/api/suggest-ideas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      const r = await authedFetch('/api/suggest-ideas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         notes: pool, existing, focus: focus.trim() || null,
         series: (structure?.series || []).map((x) => ({ name: x.name, description: x.description })),
         trends: (trends || []).flatMap((s) => s.trends.slice(0, 3).map((t) => t.topic)).slice(0, 10),

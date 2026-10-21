@@ -1,6 +1,8 @@
+import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   try {
     const { title, content, contentType } = await request.json()
 

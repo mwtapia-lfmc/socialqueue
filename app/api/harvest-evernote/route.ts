@@ -1,4 +1,6 @@
+import { requireUser, signInFirst } from '../../lib/requireUser'
 export async function GET(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -43,6 +45,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   try {
     const { userId, noteId } = await request.json()
 

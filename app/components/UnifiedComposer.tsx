@@ -132,7 +132,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     setTitling(true)
     try {
       const ser = structure?.series.find((x) => x.id === draft.series_id)
-      const r = await fetch('/api/suggest-titles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: draft.title, hook: draft.hook, content: draft.content, series: ser?.name, tags: draft.tags || [], previous: titleSeen.slice(-12) }) })
+      const r = await authedFetch('/api/suggest-titles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: draft.title, hook: draft.hook, content: draft.content, series: ser?.name, tags: draft.tags || [], previous: titleSeen.slice(-12) }) })
       const d = await r.json(); if (!r.ok) throw new Error(d.error)
       setTitles(d.titles); setTitleSeen((x) => [...x, ...d.titles.map((t: any) => t.title)])
     } catch (e) { alert('Title ideas failed: ' + (e as Error).message) }
@@ -143,7 +143,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const gradeIt = async () => {
     setGrading(true)
     try {
-      const r = await fetch('/api/grade-essay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: draft.title, text: draft.content, kind: isLong ? 'longform' : 'post' }) })
+      const r = await authedFetch('/api/grade-essay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: draft.title, text: draft.content, kind: isLong ? 'longform' : 'post' }) })
       const d = await r.json(); if (!r.ok) throw new Error(d.error)
       setGrade(d)
     } catch (e) { alert('Grading failed: ' + (e as Error).message) }
@@ -164,7 +164,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
       const sid = promptSeries || draft.series_id || ''
       const ser = structure?.series.find((x) => x.id === sid)
       const tr = trendList.find((t) => t.key === promptTrend)
-      const r = await fetch('/api/writing-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      const r = await authedFetch('/api/writing-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         format: isLong ? 'longform' : 'note',
         series: ser ? { name: ser.name, description: ser.description } : null,
         tags: draft.tags || [],
@@ -292,7 +292,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     setRewriting(true)
     try {
       const limit = draft.kind === 'post' ? Math.min(...selectedPlatforms.map((p) => PLATFORM_LIMITS[p]), 500) : undefined
-      const r = await fetch('/api/rewrite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: draft.content, tone, kind: draft.kind, limit }) })
+      const r = await authedFetch('/api/rewrite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: draft.content, tone, kind: draft.kind, limit }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
       setUndoText(draft.content)
@@ -306,7 +306,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     if (!draft.content.trim()) return
     setAnalyzing(true)
     try {
-      const r = await fetch('/api/analyze-content', {
+      const r = await authedFetch('/api/analyze-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: draft.title, content: draft.content, contentType: draft.kind }),
@@ -324,7 +324,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const loadNotes = async () => {
     setShowEvernote(true)
     if (notes) return
-    const r = await fetch(`/api/harvest-evernote?userId=${userId}`)
+    const r = await authedFetch(`/api/harvest-evernote?userId=${userId}`)
     const data = await r.json()
     setNotes(data.notes || [])
   }

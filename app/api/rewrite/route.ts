@@ -1,3 +1,4 @@
+import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
 const TONE_GUIDE: Record<string, string> = {
@@ -9,6 +10,7 @@ const TONE_GUIDE: Record<string, string> = {
 }
 
 export async function POST(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   const { text, tone = 'casual', kind = 'post', limit } = await request.json()
   if (!text?.trim()) return Response.json({ error: 'Nothing to rewrite' }, { status: 400 })
   const apiKey = process.env.ANTHROPIC_API_KEY

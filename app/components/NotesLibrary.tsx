@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from '../lib/api'
 import { useEffect, useMemo, useState } from 'react'
 import { parseNoteFile, pickNotes, notebookOf, isEmptyNote, type Note } from '../lib/notes'
 import { timeAgo } from '../lib/text'
@@ -78,7 +79,7 @@ export default function NotesLibrary({ focusId, notes, missing, onImport, onDele
       const scope = open.length ? notes.filter((n) => open.includes(notebookOf(n))) : notes
       const pool = pickNotes(scope, ask, 14, 1200)
       const withBook = pool.map((p) => ({ ...p, notebook: notebookOf(scope.find((n) => n.title === p.title) || { source: '' }) }))
-      const r = await fetch('/api/ask-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: ask, notes: withBook }) })
+      const r = await authedFetch('/api/ask-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: ask, notes: withBook }) })
       const d = await r.json(); if (!r.ok) throw new Error(d.error)
       setAnswer({ q: ask, answer: d.answer, sources: d.sources || [] })
     } catch (e) { alert('Ask failed: ' + (e as Error).message) }

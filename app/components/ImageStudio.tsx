@@ -1,5 +1,6 @@
 'use client'
 
+import { authedFetch } from '../lib/api'
 import { useState } from 'react'
 import { RATIOS, PLATFORM_RATIO, cropToRatio, fileToDataUrl, uploadToStorage, type RatioKey } from '../lib/images'
 
@@ -47,7 +48,7 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
     if (!genPrompt.trim()) return
     setBusy('generate')
     try {
-      const r = await fetch('/api/generate-image', {
+      const r = await authedFetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: genPrompt, size: RATIOS[ratio].genSize }),
@@ -71,7 +72,7 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
       form.append('image', blob, 'image.png')
       form.append('prompt', editPrompt)
       form.append('size', RATIOS[ratio].genSize)
-      const r = await fetch('/api/edit-image', { method: 'POST', body: form })
+      const r = await authedFetch('/api/edit-image', { method: 'POST', body: form })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error)
       setWorking(data.imageUrl)

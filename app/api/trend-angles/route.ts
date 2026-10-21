@@ -1,6 +1,8 @@
+import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: Request) {
+  if (!(await requireUser(request))) return signInFirst()
   const { topic, detail, platforms = ['threads'], voiceSamples = [] } = await request.json()
   if (!topic) return Response.json({ error: 'Topic required' }, { status: 400 })
   const apiKey = process.env.ANTHROPIC_API_KEY
