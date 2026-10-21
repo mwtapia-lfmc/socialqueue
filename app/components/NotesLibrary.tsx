@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { parseNoteFile, pickNotes, notebookOf, type Note } from '../lib/notes'
+import { parseNoteFile, pickNotes, notebookOf, isEmptyNote, type Note } from '../lib/notes'
 import { timeAgo } from '../lib/text'
 
 type Brand = 'evernote' | 'apple' | null
@@ -59,6 +59,7 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
     } catch (e) { alert('Could not read that file: ' + (e as Error).message) }
     setBusy(false)
   }
+  const empties = notes.filter(isEmptyNote)
   const needle = q.trim().toLowerCase()
   const inBook = (name: string) => notes.filter((n) => notebookOf(n) === name && (!needle || `${n.title} ${n.body}`.toLowerCase().includes(needle)))
 
@@ -154,6 +155,7 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-400">Click tiles to open them side by side.</span>
+            {empties.length > 0 && <button onClick={async () => { if (confirm(`Delete ${empties.length} empty note${empties.length > 1 ? 's' : ''} (no title, no body)?`)) for (const n of empties) await onDelete(n) }} className="text-xs px-2.5 py-1 rounded-md bg-red-50 text-red-700 hover:bg-red-100 font-medium">🧹 Remove {empties.length} empty</button>}
             <span className="flex-1" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search open notebooks…" className="w-full sm:w-60 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
           </div>

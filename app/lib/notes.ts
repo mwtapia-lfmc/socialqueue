@@ -1,5 +1,8 @@
 export interface Note { id: string; title: string; body: string; source: string; created_at: string }
 
+// A note with no body and no real title (Evernote calls blank ones "Untitled")
+export const isEmptyNote = (n: { title?: string | null; body?: string | null }) => !(n.body || '').trim() && (!(n.title || '').trim() || /^untitled( note)?$/i.test((n.title || '').trim()))
+
 const STOP = new Set('the a an and or of to in on for with is are was were be it this that at as by from my your our i you we they he she not but so if then than too very just about into over out up down how what why who when'.split(' '))
 const words = (s: string) => (s.toLowerCase().match(/[a-z0-9']{3,}/g) || []).filter((w) => !STOP.has(w))
 
@@ -36,7 +39,7 @@ export async function parseNoteFile(file: File): Promise<{ title: string; body: 
       title: n.getElementsByTagName('title')[0]?.textContent?.trim() || 'Untitled',
       body: textOf(n.getElementsByTagName('content')[0]?.textContent || '').slice(0, 20000),
       source: `evernote:${name}`,
-    })).filter((n) => n.body || n.title !== 'Untitled')
+    })).filter((n) => !isEmptyNote(n))
   }
   const body = (/\.(html?|rtf)$/i.test(file.name) ? textOf(raw) : raw.trim()).slice(0, 20000)
   return body ? [{ title: name, body, source: /\.html?$/i.test(file.name) ? 'apple-notes' : 'file' }] : []

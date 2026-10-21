@@ -7,7 +7,7 @@ import UnifiedComposer, { type Item } from './components/UnifiedComposer'
 import Drafts from './components/Drafts'
 import Brainstorm from './components/Brainstorm'
 import NotesLibrary from './components/NotesLibrary'
-import type { Note } from './lib/notes'
+import { isEmptyNote, type Note } from './lib/notes'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
@@ -165,8 +165,10 @@ export default function Home() {
     upsertLocal(data as Item)
   }
   const startIdea = async (it: Item) => { await setStatus(it, { stage: 'drafting' } as Partial<Item>); edit({ ...it, stage: 'drafting' }) }
-  const importNotes = async (rows: { title: string; body: string; source: string }[]) => {
+  const importNotes = async (all: { title: string; body: string; source: string }[]) => {
     if (!user) return
+    const rows = all.filter((r) => !isEmptyNote(r))
+    if (!rows.length) return alert('Nothing to save: those notes were empty.')
     for (let i = 0; i < rows.length; i += 50) {
       const { error } = await supabase.from('notes').insert(rows.slice(i, i + 50).map((r) => ({ ...r, user_id: user.id })))
       if (error) return alert('Could not save notes: ' + error.message)
