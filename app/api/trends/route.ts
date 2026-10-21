@@ -61,6 +61,26 @@ async function hackernews() {
   return src
 }
 
+async function reddit() {
+  const src = base('reddit', 'Reddit', '👽', 'What people are upvoting and arguing about right now (r/popular), in rank order')
+  try {
+    const r = await fetch('https://www.reddit.com/r/popular/.rss?limit=20', { headers: UA })
+    if (!r.ok) throw new Error(`Reddit said ${r.status}`)
+    const xml = await r.text()
+    src.trends = Array.from(xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)).slice(0, 15).map((m) => {
+      const e = m[1]
+      const title = decode(e.match(/<title>([\s\S]*?)<\/title>/)?.[1] || '').trim()
+      const sub = e.match(/<category term="([^"]+)"/)?.[1]
+      const url = e.match(/<link href="([^"]+)"/)?.[1]
+      const author = e.match(/<name>\/u\/([^<]+)<\/name>/)?.[1]
+      const updated = e.match(/<updated>([^<]+)<\/updated>/)?.[1]
+      return { topic: title, summary: sub ? `Posted in r/${sub}${author ? ` by u/${author}` : ''}.` : undefined, url, secondary: sub ? `r/${sub}` : undefined, category: sub, startedAt: updated }
+    }).filter((t) => t.topic)
+    if (!src.trends.length) throw new Error('No Reddit posts came back')
+  } catch (e: any) { src.error = e.message }
+  return src
+}
+
 async function xTrends(token?: string) {
   const src = base('twitter', 'X', '𝕏', 'Trending on X in the US')
   if (!token) { src.needs = 'Connect X in Accounts to see its trends.'; return src }
@@ -77,6 +97,6 @@ export async function GET(request: Request) {
   const db = userClient(request)
   const { data: conns } = await db.from('connections').select('platform, credentials')
   const xTok = conns?.find((c) => c.platform === 'twitter')?.credentials?.accessToken
-  const sources = await Promise.all([cached('bluesky', bluesky), cached('google', google), cached('hn', hackernews), xTok ? cached('x', () => xTrends(xTok)) : xTrends(undefined)])
+  const sources = await Promise.all([cached('bluesky', bluesky), cached('google', google), cached('hn', hackernews), cached('reddit', reddit), xTok ? cached('x', () => xTrends(xTok)) : xTrends(undefined)])
   return Response.json({ sources, fetchedAt: new Date().toISOString(), note: 'Meta (Threads, Instagram, Facebook) and LinkedIn publish no trending data. Bluesky and Google are the closest read on what people are talking about right now.' })
 }
