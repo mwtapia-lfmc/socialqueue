@@ -207,7 +207,7 @@ export default function Structure(p: Props) {
     }
 
     const RepoCard = ({ it }: { it: Item }) => (
-      <div {...dragProps(it)} className={`rounded-xl border border-gray-200 bg-white px-2.5 py-2 space-y-1 cursor-grab active:cursor-grabbing hover:border-orange-300 transition ${dragId === it.id ? 'opacity-40' : ''}`}>
+      <div {...dragProps(it)} onClick={() => p.onOpen(it)} title="Click to open and edit" className={`rounded-xl border border-gray-200 bg-white px-2.5 py-2 space-y-1 cursor-pointer hover:border-orange-300 hover:shadow-sm transition ${dragId === it.id ? 'opacity-40' : ''}`}>
         <div className="flex items-start gap-2">
           <span className="text-gray-300 text-xs leading-5 select-none">⋮⋮</span>
           <p className="text-[13px] leading-snug font-medium line-clamp-2 flex-1">{label(it)}</p>
@@ -216,8 +216,8 @@ export default function Structure(p: Props) {
         <div className="flex flex-wrap items-center gap-1 text-[10px] pl-4">
           {itemTags(it, buckets).map((k) => <span key={k} className="px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{tagInfo(k)?.emoji} {k}</span>)}
           <span className="ml-auto flex items-center gap-2">
-            <button onClick={() => p.onOpen(it)} className="text-indigo-600 hover:underline">Open</button>
-            <label className="relative text-indigo-600 hover:underline cursor-pointer" title="Place on a date (works on phones too)">📅 place
+            <button onClick={(e) => { e.stopPropagation(); p.onOpen(it) }} className="text-indigo-600 hover:underline">Edit</button>
+            <label onClick={(e) => e.stopPropagation()} className="relative text-indigo-600 hover:underline cursor-pointer" title="Place on a date (works on phones too)">📅 place
               <input type="date" value="" onChange={(e) => e.target.value && p.onPlace(it, e.target.value)} className="absolute inset-0 opacity-0 w-full cursor-pointer" aria-label="Place on date" />
             </label>
           </span>
@@ -391,8 +391,8 @@ export default function Structure(p: Props) {
           <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-900 text-white">{FORMAT_LABEL[fmtOf(it)]}</span>
           <span className={`text-[11px] px-2 py-0.5 rounded-full ${STAGE_STYLE[st]}`}>{st}</span>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold leading-snug">{label(it)}</p>
+        <div className="min-w-0 flex-1 cursor-pointer" role="button" tabIndex={0} onClick={() => p.onOpen(it)} onKeyDown={(e) => e.key === 'Enter' && p.onOpen(it)} title="Click to open and edit">
+          <p className="font-semibold leading-snug hover:text-indigo-700">{label(it)}</p>
           {it.hook && it.title && <p className="text-sm text-gray-600 italic mt-0.5">“{it.hook}”</p>}
           <div className="flex flex-wrap gap-1.5 mt-2 text-[11px]">
             {nameOf(series, it.series_id) && <span className="px-2 py-0.5 rounded-full bg-orange-50 text-orange-800">{seriesEmoji(series.find((x) => x.id === it.series_id)!)} {nameOf(series, it.series_id)}</span>}
@@ -402,7 +402,7 @@ export default function Structure(p: Props) {
           </div>
         </div>
         <div className="shrink-0 flex flex-col items-end gap-1">
-          <button onClick={() => p.onOpen(it)} className="text-xs px-2.5 py-1 rounded-lg bg-gray-900 text-white hover:bg-gray-700">Open</button>
+          <button onClick={() => p.onOpen(it)} className="text-xs px-2.5 py-1 rounded-lg bg-gray-900 text-white hover:bg-gray-700">Edit</button>
           {st === 'published'
             ? <button onClick={() => p.onRepurpose(it)} className="text-xs px-2.5 py-1 rounded-lg text-indigo-700 hover:bg-indigo-50">Repurpose</button>
             : <button onClick={() => p.onMarkPublished(it)} className="text-xs px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50">Mark published</button>}
