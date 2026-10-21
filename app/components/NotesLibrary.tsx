@@ -4,6 +4,12 @@ import { useMemo, useState } from 'react'
 import { parseNoteFile, pickNotes, notebookOf, type Note } from '../lib/notes'
 import { timeAgo } from '../lib/text'
 
+type Brand = 'evernote' | 'apple' | null
+const BRAND = {
+  evernote: { off: 'bg-[#00A82D]/10 border-[#00A82D]/40 hover:border-[#00A82D]', on: 'bg-[#00A82D] border-[#00A82D] text-white shadow-lg', chip: 'bg-white/25', sub: 'text-white/85', chipOff: 'bg-[#00A82D]/15 text-[#007a20]' },
+  apple: { off: 'bg-[#FFCC00]/15 border-[#FFCC00]/60 hover:border-[#FFCC00]', on: 'bg-[#FFCC00] border-[#FFCC00] text-gray-900 shadow-lg', chip: 'bg-black/10', sub: 'text-gray-800/75', chipOff: 'bg-[#FFCC00]/30 text-[#7a5f00]' },
+}
+
 export const NOTES_SQL = `CREATE TABLE IF NOT EXISTS notes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -116,6 +122,8 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
             <div className="flex gap-2">
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional)" className="flex-1 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
               <input value={notebook} onChange={(e) => setNotebook(e.target.value)} list="sq-notebooks" placeholder="Notebook (e.g. Apple Notes)" className="w-52 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
+              <button type="button" onClick={() => setNotebook('Apple Notes')} className="text-xs px-2.5 rounded-lg bg-[#FFCC00]/30 text-[#7a5f00] font-medium shrink-0">Apple Notes</button>
+              <button type="button" onClick={() => setNotebook('Evernote')} className="text-xs px-2.5 rounded-lg bg-[#00A82D]/15 text-[#007a20] font-medium shrink-0">Evernote</button>
               <datalist id="sq-notebooks">{books.map((b) => <option key={b.name} value={b.name} />)}</datalist>
             </div>
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="Paste a note, a rant, a voice memo transcript…" className="p-3 text-sm border border-gray-200 rounded-lg bg-white" />
@@ -130,15 +138,16 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
             {books.map((b) => {
               const on = open.includes(b.name)
               const mine = notes.filter((n) => notebookOf(n) === b.name)
+              const br: Brand = /apple/i.test(b.name) || mine.some((n) => n.source.startsWith('apple-notes')) ? 'apple' : /evernote/i.test(b.name) || mine.some((n) => n.source.startsWith('evernote')) ? 'evernote' : null
               return (
                 <button key={b.name} onClick={() => toggle(b.name)} aria-pressed={on}
-                  className={`text-left rounded-2xl p-4 border transition flex flex-col gap-2 min-h-[120px] ${on ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white/90 border-gray-200 hover:border-indigo-300 hover:shadow-md'}`}>
+                  className={`text-left rounded-2xl p-4 border transition flex flex-col gap-2 min-h-[120px] ${br ? (on ? BRAND[br].on : BRAND[br].off) : on ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white/90 border-gray-200 hover:border-indigo-300 hover:shadow-md'}`}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-2xl leading-none">📓</span>
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${on ? 'bg-white/25' : 'bg-gray-100 text-gray-700'}`}>{b.count}</span>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${on ? (br ? BRAND[br].chip : 'bg-white/25') : br ? BRAND[br].chipOff : 'bg-gray-100 text-gray-700'}`}>{b.count}</span>
                   </div>
                   <span className="font-semibold text-[15px] leading-tight break-words">{b.name}</span>
-                  <span className={`text-[11px] leading-snug line-clamp-2 ${on ? 'text-white/80' : 'text-gray-500'}`}>{mine.slice(0, 2).map((n) => n.title).join(' · ')}</span>
+                  <span className={`text-[11px] leading-snug line-clamp-2 ${on ? (br ? BRAND[br].sub : 'text-white/80') : 'text-gray-500'}`}>{mine.slice(0, 2).map((n) => n.title).join(' · ')}</span>
                 </button>
               )
             })}
