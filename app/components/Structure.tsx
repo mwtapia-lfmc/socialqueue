@@ -63,6 +63,22 @@ function EmojiBtn({ emoji, onPick, size = 'text-lg' }: { emoji: string; onPick: 
   )
 }
 
+function GoalEdit({ placed, target, onSave }: { placed: number; target: number; onSave: (n: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [v, setV] = useState(String(target))
+  if (!editing) {
+    return <span role="button" tabIndex={0} title="Click to change the weekly goal (applies to every week)" onClick={(e) => { e.stopPropagation(); setV(String(target)); setEditing(true) }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setV(String(target)); setEditing(true) } }} className="cursor-pointer underline decoration-dotted underline-offset-2 hover:bg-orange-100 rounded px-0.5">{placed}/{target}</span>
+  }
+  const commit = () => { setEditing(false); const n = parseInt(v, 10); if (!Number.isNaN(n)) { const c = Math.max(0, Math.min(21, n)); if (c !== target) onSave(c) } }
+  return (
+    <span onClick={(e) => e.stopPropagation()} className="inline-flex items-center">{placed}/
+      <input autoFocus onFocus={(e) => e.target.select()} type="number" min={0} max={21} value={v} onChange={(e) => setV(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }} className="w-11 h-6 ml-0.5 px-1 text-center text-xs font-bold rounded border border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white" />
+    </span>
+  )
+}
+
 function LogoPicker({ url, size, label: lbl, onPick, onClear }: { url?: string | null; size: number; label: string; onPick: (f: File) => void; onClear: () => void }) {
   return (
     <div className="relative group shrink-0" style={{ width: size, height: size }}>
@@ -262,71 +278,59 @@ export default function Structure(p: Props) {
       )
     }
 
-    const dropOnDay = (day: string) => {
-      const it = dragged; setDragId(null); setOverKey(null)
-      if (!it || stageOf(it) === 'published') return
-      p.onPlace(it, day)
-    }
     const freeDay = (days: string[], f: Format) => days.find((d) => d >= todayKey && inCell(d, f).length === 0) ?? days.find((d) => inCell(d, f).length === 0) ?? days[0]
-    const dropOnSlot = (days: string[], f: Format) => {
-      const it = dragged; setDragId(null); setOverKey(null)
-      if (!it || stageOf(it) === 'published' || fmtOf(it) !== f) return
-      if (it.planned_for && days.includes(it.planned_for)) return
-      p.onPlace(it, freeDay(days, f))
-    }
 
-    const PlacedSlot = ({ it }: { it: Item }) => {
+    const PlacedCard = ({ it }: { it: Item }) => {
       const st = stageOf(it)
-      const date = placedDate(it)
       return (
-        <div {...dragProps(it)} className={`group relative rounded-xl border px-3 py-2 ${st === 'published' ? 'border-emerald-200 bg-emerald-50' : 'border-orange-200 bg-orange-50 cursor-grab active:cursor-grabbing'} ${dragId === it.id ? 'opacity-40' : ''}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold text-orange-900">📅 {date ? prettyDate(date) : 'no day'}</span>
-            {st !== 'published'
-              ? <label className="flex items-center gap-1 text-[11px] font-semibold text-orange-900 cursor-pointer" title="Set the time">🕘<input type="time" value={(it.planned_time || '').slice(0, 5)} onChange={(e) => e.target.value && p.onPlace(it, it.planned_for || null, e.target.value)} className="bg-transparent w-[96px] text-[11px] font-semibold" /></label>
-              : it.published_at && <span className="text-[11px] font-semibold text-emerald-800">🕘 {new Date(it.published_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
-            <span className={`ml-auto text-[9px] px-1.5 py-0.5 rounded-full ${STAGE_STYLE[st]}`}>{st}</span>
-          </div>
+        <div {...dragProps(it)} className={`group relative rounded-lg border px-2 py-1.5 text-left ${st === 'published' ? 'border-emerald-200 bg-emerald-50' : 'border-orange-200 bg-orange-50 cursor-grab active:cursor-grabbing'} ${dragId === it.id ? 'opacity-40' : ''}`}>
+          {st !== 'published'
+            ? <label className="flex items-center gap-1 text-[11px] font-semibold text-orange-900 mb-0.5 cursor-pointer" title="Set the time">🕘<input type="time" value={(it.planned_time || '').slice(0, 5)} onChange={(e) => e.target.value && p.onPlace(it, it.planned_for || null, e.target.value)} className="bg-transparent w-[96px] text-[11px] font-semibold" /></label>
+            : it.published_at && <span className="block text-[11px] font-semibold text-emerald-800 mb-0.5">🕘 {new Date(it.published_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
           <button onClick={() => p.onOpen(it)} className="block w-full text-left" title="Click to open and edit">
-            <span className="block text-[13px] leading-snug line-clamp-3 hover:text-indigo-700">{label(it)}</span>
-            {nameOf(series, it.series_id) && <span className="block text-[10px] text-orange-800/70 mt-0.5 truncate">{seriesEmoji(series.find((x) => x.id === it.series_id)!)} {nameOf(series, it.series_id)}</span>}
+            <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full mb-0.5 ${STAGE_STYLE[st]}`}>{st}</span>
+            <span className="block text-[12px] leading-snug line-clamp-3 hover:text-indigo-700">{label(it)}</span>
+            {nameOf(series, it.series_id) && <span className="block text-[10px] text-orange-800/70 mt-0.5 truncate">{nameOf(series, it.series_id)}</span>}
           </button>
           {st !== 'published' && <button onClick={() => p.onPlace(it, null)} title="Back to repository" className="absolute top-1 right-1 h-4 w-4 rounded-full bg-white border border-gray-200 text-gray-400 text-[10px] leading-none opacity-0 group-hover:opacity-100 hover:text-red-600">×</button>}
         </div>
       )
     }
 
-    const FormatRow = ({ f, days, n }: { f: Format; days: string[]; n: number }) => {
-      const list = days.flatMap((d) => inCell(d, f))
-      const target = cad[f]
-      const empties = Math.max(0, target - list.length)
-      if (!list.length && target === 0) return null
-      const key = `slot:${n}:${f}`
+    // A day cell is invisible when empty. It only shows a drop target while you drag a matching card, or a + on hover.
+    const DayCell = ({ day, f }: { day: string; f: Format }) => {
+      const list = inCell(day, f)
+      const key = `${day}:${f}`
       const canDrop = !!dragged && fmtOf(dragged) === f
+      const over = overKey === key && canDrop
       return (
-        <div className="mb-3">
-          <p className="text-[11px] font-bold mb-1.5">{f === 'note' ? 'Posts / Notes' : 'Longform (article or video)'} <span className="font-normal text-gray-400">· {list.length}/{target}</span></p>
-          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-            {list.map((it) => <PlacedSlot key={it.id} it={it} />)}
-            {Array.from({ length: empties }, (_, i) => (
-              <button key={`e${i}`} onClick={() => p.onNew(f, { plannedFor: freeDay(days, f), seriesId: openSeriesId })}
-                onDragOver={(e) => { if (canDrop) { e.preventDefault(); setOverKey(key + i) } }} onDragLeave={() => setOverKey((k) => (k === key + i ? null : k))} onDrop={(e) => { e.preventDefault(); dropOnSlot(days, f) }}
-                className={`rounded-xl border-2 border-dashed min-h-[72px] text-xs transition ${overKey === key + i && canDrop ? 'border-orange-500 bg-orange-50 text-orange-700' : canDrop ? 'border-orange-300 text-orange-500' : 'border-gray-200 text-gray-300 hover:border-orange-300 hover:text-orange-600'}`}>
-                + {f === 'note' ? 'Post / Note' : 'Longform'}<span className="block text-[10px] opacity-70">{canDrop ? 'drop here' : 'or drag one in'}</span>
-              </button>
-            ))}
-          </div>
+        <div onDragOver={(e) => { if (canDrop) { e.preventDefault(); setOverKey(key) } }} onDragLeave={() => setOverKey((k) => (k === key ? null : k))} onDrop={(e) => { e.preventDefault(); drop(day, f) }}
+          className={`group/cell rounded-xl p-1 min-h-[44px] space-y-1.5 transition ${over ? 'bg-orange-100 ring-2 ring-orange-400' : canDrop ? 'border border-dashed border-orange-300 bg-orange-50/40' : day === todayKey ? 'bg-indigo-50/40' : ''}`}>
+          {list.map((it) => <PlacedCard key={it.id} it={it} />)}
+          {list.length === 0 && !dragged && (
+            <button onClick={() => p.onNew(f, { plannedFor: day, seriesId: openSeriesId })} className="w-full min-h-[36px] rounded-lg text-[11px] text-transparent group-hover/cell:text-orange-600 hover:bg-orange-50 transition" aria-label={`New ${FORMAT_LABEL[f]} on ${day}`}>+ new</button>
+          )}
         </div>
       )
     }
 
-    const Stepper = ({ label: lbl, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) => (
-      <span className="flex items-center gap-1.5 text-xs pl-3 pr-1.5 py-1 rounded-full bg-white border border-gray-200">{lbl}
-        <button onClick={() => onChange(Math.max(0, value - 1))} className="h-6 w-6 rounded-full hover:bg-gray-100 text-base leading-none" aria-label="Fewer">−</button>
-        <strong className="w-5 text-center text-sm">{value}</strong>
-        <button onClick={() => onChange(Math.min(21, value + 1))} className="h-6 w-6 rounded-full hover:bg-gray-100 text-base leading-none" aria-label="More">+</button>
-      </span>
-    )
+    const DayRow = ({ f, days }: { f: Format; days: string[] }) => {
+      const placed = days.reduce((n, d) => n + inCell(d, f).length, 0)
+      const target = cad[f]
+      if (placed === 0 && target === 0) return null
+      const cols = `84px repeat(${days.length}, minmax(0, 1fr))`
+      return (
+        <div className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: cols }}>
+          <div className="pt-1">
+            <p className="text-[11px] font-bold leading-tight">{f === 'note' ? 'Posts / Notes' : 'Longform'}</p>
+            <p className="text-[10px] text-gray-400 leading-tight">{f === 'longform' ? 'article or video' : 'short-form'}</p>
+            <p className={`text-[11px] font-semibold ${placed >= target ? 'text-emerald-600' : 'text-gray-600'}`}><GoalEdit placed={placed} target={target} onSave={(n) => p.onCadence(f === 'note' ? { notes_per_week: n } : { longform_per_week: n })} /></p>
+            {placed < target && <button onClick={() => p.onNew(f, { plannedFor: freeDay(days, f), seriesId: openSeriesId })} className="mt-0.5 text-[10px] text-orange-700 hover:underline">+ add</button>}
+          </div>
+          {days.map((d) => <DayCell key={d} day={d} f={f} />)}
+        </div>
+      )
+    }
 
     return (
       <div className="sq-fade-in">
@@ -356,10 +360,6 @@ export default function Structure(p: Props) {
           <section className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-3 px-1">
               <div className="mr-auto"><h3 className="text-lg font-bold">{year} · Weeks {showPast ? 1 : todayWeek}–52</h3><p className="text-[11px] text-gray-500">Week 1 starts Jan 1 · Week 52 ends Dec 31. Click a week to open or close it. Drag a title onto a day.</p></div>
-              <div className="flex flex-wrap items-center gap-2"><span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Weekly goal</span>
-                <Stepper label="Posts / Notes" value={cad.note} onChange={(n) => p.onCadence({ notes_per_week: n })} />
-                <Stepper label="Longform" value={cad.longform} onChange={(n) => p.onCadence({ longform_per_week: n })} />
-              </div>
               {todayWeek > 1 && <button onClick={() => setShowPast((v) => !v)} className="text-xs px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200">{showPast ? 'Hide earlier weeks' : `Show earlier weeks (${todayWeek - 1})`}</button>}
             </div>
 
@@ -378,36 +378,30 @@ export default function Structure(p: Props) {
                     {isNow && <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">this week</span>}
                     <span className="flex-1" />
                     <span className="hidden sm:flex gap-1">{days.map((d) => { const c = inCell(d, 'note').length + inCell(d, 'longform').length; return <span key={d} title={`${prettyDate(d)}: ${c}`} className={`h-2.5 w-2.5 rounded-sm ${c ? 'bg-orange-400' : 'bg-gray-200'}`} /> })}</span>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-50 text-orange-900">Notes <strong className={notes >= cad.note ? 'text-emerald-600' : ''}>{notes}/{cad.note}</strong></span>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-50 text-orange-900">Longform <strong className={longs >= cad.longform ? 'text-emerald-600' : ''}>{longs}/{cad.longform}</strong></span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-50 text-orange-900">Notes <strong className={notes >= cad.note ? 'text-emerald-600' : ''}><GoalEdit placed={notes} target={cad.note} onSave={(n) => p.onCadence({ notes_per_week: n })} /></strong></span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-50 text-orange-900">Longform <strong className={longs >= cad.longform ? 'text-emerald-600' : ''}><GoalEdit placed={longs} target={cad.longform} onSave={(n) => p.onCadence({ longform_per_week: n })} /></strong></span>
                     <span className="text-gray-400 text-xs">{open ? '▾' : '▸'}</span>
                   </button>
                   {open && (
-                    <div className="px-4 pb-4">
-                      <p className="text-[11px] text-gray-500 mb-1.5">{dragged ? 'Drop on a day to set the publish day' : 'Publish day — drag a card onto a day'}</p>
-                      <div className="overflow-x-auto sq-scroll mb-3">
-                        <div className="grid gap-1.5 min-w-[620px]" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
-                          {days.map((d) => {
-                            const dt = parse(d); const isToday = d === todayKey; const key = `day:${d}`; const over = overKey === key
-                            const c = inCell(d, 'note').length + inCell(d, 'longform').length
-                            return (
-                              <div key={d} onDragOver={(e) => { if (dragged) { e.preventDefault(); setOverKey(key) } }} onDragLeave={() => setOverKey((k) => (k === key ? null : k))} onDrop={(e) => { e.preventDefault(); dropOnDay(d) }}
-                                className={`rounded-lg text-center py-1.5 text-[11px] font-semibold transition ${over ? 'bg-orange-500 text-white ring-2 ring-orange-300' : dragged ? 'bg-orange-100 text-orange-900 border border-dashed border-orange-300' : isToday ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                                {dt.toLocaleDateString(undefined, { weekday: 'short' })} {dt.getDate()}<span className="font-normal opacity-70"> {dt.toLocaleDateString(undefined, { month: 'short' })}</span>
-                                {c > 0 && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-orange-500 align-middle" title={`${c} planned`} />}
-                              </div>
-                            )
-                          })}
+                    <div className="px-3 pb-3 overflow-x-auto sq-scroll">
+                      <div className="min-w-[860px]">
+                        <div className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: `84px repeat(${days.length}, minmax(0, 1fr))` }}>
+                          <div />
+                          {days.map((d) => { const dt = parse(d); const isToday = d === todayKey; return (
+                            <div key={d} className={`rounded-lg text-center py-1 text-[11px] font-semibold ${isToday ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                              {dt.toLocaleDateString(undefined, { weekday: 'short' })} {dt.getDate()}<span className="font-normal opacity-70"> {dt.toLocaleDateString(undefined, { month: 'short' })}</span>
+                            </div>
+                          ) })}
                         </div>
+                        <DayRow f="note" days={days} />
+                        <DayRow f="longform" days={days} />
                       </div>
-                      <FormatRow f="note" days={days} n={n} />
-                      <FormatRow f="longform" days={days} n={n} />
                     </div>
                   )}
                 </div>
               )
             })}
-            <p className="text-[11px] text-gray-400 px-1">Each week shows as many slots as your weekly goal, no more. Drag a card onto a day above to choose its publish day, or onto an empty slot to place it in the week. Set a time on any card. Everything here also shows on the Calendar.</p>
+            <p className="text-[11px] text-gray-400 px-1">One tile per week. Drag a card to another day to change its publish day, or from the repository onto a day. Hover a blank day for + new. Set a time on any card. Everything here also shows on the Calendar.</p>
           </section>
         </div>
       </div>
