@@ -328,10 +328,10 @@ export default function Home() {
 
   const tabs: { key: View; label: string; count?: number; group?: string }[] = [
     { key: 'home', label: '🏠 Home' },
-    { key: 'notes', label: '📓 Notes', count: notes.length || undefined, group: 'Gather' },
-    { key: 'trends', label: '📈 Trends' },
+    { key: 'trends', label: '📈 Trends', group: 'Gather' },
     { key: 'profiles', label: '👤 Profiles' },
-    { key: 'brainstorm', label: '🧠 Brainstorm', count: ideas.length, group: 'Plan' },
+    { key: 'notes', label: '📓 Notes', count: notes.length || undefined, group: 'Plan' },
+    { key: 'brainstorm', label: '🧠 Brainstorm', count: ideas.length },
     { key: 'structure', label: '🗓 Planner' },
     { key: 'compose', label: '✍️ Compose', group: 'Write' },
     { key: 'batch', label: '⚡ Batch' },
