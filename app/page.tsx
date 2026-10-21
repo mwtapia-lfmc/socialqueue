@@ -366,16 +366,16 @@ export default function Home() {
                 {collapsed ? <span className="sq-gradient-text text-xl">SQ</span> : <><span className="sq-gradient-text text-xl">SocialQueue</span><span className="block text-[10px] font-medium text-gray-400 -mt-0.5">v{process.env.NEXT_PUBLIC_APP_VERSION}</span></>}
               </button>
             </div>
-            <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+            <nav className="flex-1 px-3 overflow-y-auto">
               {tabs.map((t) => {
                 const [icon, ...rest] = t.label.split(' ')
                 const active = view === t.key
                 return (
-                  <div key={t.key} className="space-y-1">
-                  {t.group && (collapsed ? <div className="mx-2 my-2 border-t border-gray-200" /> : <p className="pt-3 pb-0.5"><span className="inline-block px-2.5 py-0.5 rounded-full bg-[#7c3aed]/50 text-[10px] font-semibold uppercase tracking-wider text-white">{t.group}</span></p>)}
+                  <div key={t.key}>
+                  {t.group && (collapsed ? <div className="mx-2 my-1.5 border-t border-gray-200" /> : <p className="pt-2.5 pb-0.5 pl-1"><span className="inline-block px-2 py-px rounded-full bg-[#7c3aed]/50 text-[10px] font-semibold uppercase tracking-wider text-white">{t.group}</span></p>)}
                   <button onClick={() => go(t.key)} title={rest.join(' ')}
-                    className={`sq-tab w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ${collapsed ? 'justify-center' : ''} ${active ? 'sq-tab-active' : 'text-gray-700 hover:bg-white/80'}`}>
-                    <span className="text-lg leading-none w-6 text-center">{icon}</span>
+                    className={`sq-tab w-full flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium ${collapsed ? 'justify-center' : ''} ${active ? 'sq-tab-active' : 'text-gray-700 hover:bg-white/80'}`}>
+                    <span className="text-base leading-none w-5 text-center">{icon}</span>
                     {!collapsed && <span className="flex-1 text-left truncate">{rest.join(' ')}</span>}
                     {t.count ? <span className={`text-[11px] min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center ${active ? 'bg-white/25' : 'bg-gray-100 text-gray-700'} ${collapsed ? 'absolute translate-x-4 -translate-y-3' : ''}`}>{t.count}</span> : null}
                   </button>
