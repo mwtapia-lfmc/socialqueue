@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { parseNoteFile, pickNotes, notebookOf, isEmptyNote, type Note } from '../lib/notes'
 import { timeAgo } from '../lib/text'
 
@@ -22,13 +22,14 @@ ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own notes" ON notes FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);`
 
 interface Props {
+  focusId?: string | null
   notes: Note[]
   missing: boolean
   onImport: (rows: { title: string; body: string; source: string }[]) => Promise<void>
   onDelete: (n: Note) => Promise<void>
 }
 
-export default function NotesLibrary({ notes, missing, onImport, onDelete }: Props) {
+export default function NotesLibrary({ focusId, notes, missing, onImport, onDelete }: Props) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [notebook, setNotebook] = useState('')
@@ -48,6 +49,10 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
     return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }))
   }, [notes])
   const open = (picked ?? books.slice(0, 2).map((b) => b.name)).filter((n) => books.some((b) => b.name === n))
+  useEffect(() => {
+    const n = focusId ? notes.find((x) => x.id === focusId) : null
+    if (n) { const b = notebookOf(n); setPicked((cur) => { const base = cur ?? books.slice(0, 2).map((x) => x.name); return base.includes(b) ? base : [...base, b] }); setExpanded(n.id) }
+  }, [focusId]) // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = (name: string) => setPicked(open.includes(name) ? open.filter((x) => x !== name) : [...open, name])
 
   const files = async (fl: FileList | null) => {

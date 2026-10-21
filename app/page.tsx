@@ -7,6 +7,7 @@ import UnifiedComposer, { type Item } from './components/UnifiedComposer'
 import Drafts from './components/Drafts'
 import Brainstorm from './components/Brainstorm'
 import NotesLibrary from './components/NotesLibrary'
+import GlobalSearch from './components/GlobalSearch'
 import { isEmptyNote, notebookOf, type Note } from './lib/notes'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
@@ -63,6 +64,7 @@ export default function Home() {
   }, [])
 
   const [notes, setNotes] = useState<Note[]>([])
+  const [notesFocus, setNotesFocus] = useState<string | null>(null)
   const [notesMissing, setNotesMissing] = useState(false)
   const loadNotes = useCallback(async (userId: string) => {
     const { data, error } = await supabase.from('notes').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(2000)
@@ -428,16 +430,18 @@ export default function Home() {
               </div>
             ) : (
               <>
+                <div className="flex items-center gap-3 mb-4">
+                  <GlobalSearch items={items.filter((i) => !isPlaceholder(i))} notes={notes} onOpenItem={edit} onOpenNote={(n) => { setNotesFocus(n.id); go('notes') }} />
+                  <span className="flex-1" />
+                  {view !== 'compose' && (
+                    <button onClick={() => { setEditing(null); go('compose') }} className="hidden md:inline-flex sq-btn-primary h-11 px-5 rounded-full text-base font-semibold items-center gap-2 shadow-md shrink-0">
+                      <span className="text-xl leading-none">＋</span> New post
+                    </button>
+                  )}
+                </div>
                 {view !== 'compose' && (
-                  <>
-                    <div className="hidden md:flex justify-end mb-4">
-                      <button onClick={() => { setEditing(null); go('compose') }} className="sq-btn-primary h-11 px-5 rounded-full text-base font-semibold inline-flex items-center gap-2 shadow-md">
-                        <span className="text-xl leading-none">＋</span> New post
-                      </button>
-                    </div>
-                    <button onClick={() => { setEditing(null); go('compose') }} aria-label="New post" title="New post"
-                      className="md:hidden sq-btn-primary fixed right-4 z-30 h-14 w-14 rounded-full text-3xl leading-none flex items-center justify-center shadow-xl" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 76px)' }}>＋</button>
-                  </>
+                  <button onClick={() => { setEditing(null); go('compose') }} aria-label="New post" title="New post"
+                    className="md:hidden sq-btn-primary fixed right-4 z-30 h-14 w-14 rounded-full text-3xl leading-none flex items-center justify-center shadow-xl" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 76px)' }}>＋</button>
                 )}
                 {/* Mobile bottom nav */}
                 <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -473,7 +477,7 @@ export default function Home() {
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} onCadence={setCadence} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'brainstorm' && <Brainstorm items={ideas} structure={structure} notes={notes} drafts={drafts} trends={trends?.sources ?? null} onAdd={addIdea} onRename={(it, title) => setStatus(it, { title })} onStart={startIdea} onDelete={remove} />}
-                {view === 'notes' && <NotesLibrary notes={notes} missing={notesMissing} onImport={importNotes} onDelete={deleteNote} />}
+                {view === 'notes' && <NotesLibrary focusId={notesFocus} notes={notes} missing={notesMissing} onImport={importNotes} onDelete={deleteNote} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
                 {view === 'calendar' && <Calendar items={items.filter((i) => (i.schedule_date || i.planned_for) && !isPlaceholder(i))} onSelect={edit}
                   onMove={(it, date, time) => it.schedule_date ? setStatus(it, { schedule_date: date, schedule_time: time, ...(it.status === 'failed' ? { status: 'scheduled', publish_log: null } : {}) }) : placeItem(it, date, time)}

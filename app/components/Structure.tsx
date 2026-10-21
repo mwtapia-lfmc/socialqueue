@@ -358,7 +358,7 @@ export default function Structure(p: Props) {
 
             <div className="px-1 pt-1 flex items-center justify-between"><p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Series</p>{NewSeriesBox}</div>
             <div className="space-y-2">{seriesGroups.map(renderGroup)}</div>
-            <p className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Buckets <span className="normal-case font-normal">· tags create these</span></p>
+            <p className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Tags <span className="normal-case font-normal">· the buckets</span></p>
             <div className="space-y-2">{tagGroups.length ? tagGroups.map(renderGroup) : <p className="text-xs text-gray-400 px-1">No tagged {repoFormat === 'note' ? 'notes' : 'longform'} waiting. Add tags in the composer.</p>}</div>
             {repo.length === 0 && <p className="text-xs text-gray-400 text-center pt-2">Nothing waiting. Compose a {repoFormat === 'note' ? 'Note' : 'Longform'} in Compose, or press + New.</p>}
           </aside>
@@ -474,7 +474,7 @@ export default function Structure(p: Props) {
           {navBtn({ kind: 'all' }, '🗂 All posts', countText(mine))}
           <div className="px-3 pt-3 pb-1 flex items-center justify-between"><p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Series</p>{NewSeriesBox}</div>
           {series.map((x) => navBtn({ kind: 'series', id: x.id }, <span className="flex items-center gap-2">{x.logo_url ? <img src={x.logo_url} alt="" className="h-5 w-5 rounded object-cover border border-orange-100" /> : null}<span>{seriesEmoji(x)}</span>{x.name}</span>, countText(mine.filter((i) => i.series_id === x.id))))}
-          <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Buckets <span className="normal-case font-normal">· tags</span></p>
+          <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Tags <span className="normal-case font-normal">· the buckets</span></p>
           {registry.map((t) => navBtn({ kind: 'tag', key: t.key }, <span className="flex items-center gap-2"><span>{t.emoji}</span>#{t.name}</span>, t.count ? countText(mine.filter((i) => itemTags(i, buckets).includes(t.key))) : 'unused'))}
         </nav>
         <section className="min-w-0 space-y-4">
@@ -502,7 +502,7 @@ export default function Structure(p: Props) {
             {(['all', ...STAGES] as const).map((st) => <button key={st} onClick={() => setStageF(st)} className={`px-2.5 py-1 rounded-full border capitalize ${stageF === st ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200'}`}>{st === 'all' ? 'Any stage' : st}</button>)}
             {crossOptions.length > 0 && (
               <select value={crossF} onChange={(e) => setCrossF(e.target.value)} className="ml-auto h-8 bg-white border border-gray-200 rounded-lg px-2 text-xs">
-                <option value="">{sel.kind === 'series' ? 'Any bucket' : 'Any series'}</option>
+                <option value="">{sel.kind === 'series' ? 'Any tag' : 'Any series'}</option>
                 {crossOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
               </select>
             )}

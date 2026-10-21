@@ -500,7 +500,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                   )}
                   {tagOptions.length > 0 && (
                     <select value={promptTag} onChange={(e) => setPromptTag(e.target.value)} className="h-8 bg-white border border-amber-200 rounded-lg px-2">
-                      <option value="">Any bucket / tag</option>
+                      <option value="">Any tag</option>
                       {tagOptions.map((t) => <option key={t.key} value={t.key}>{t.emoji} {t.name}</option>)}
                     </select>
                   )}
