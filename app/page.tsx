@@ -5,6 +5,7 @@ import { supabase } from './lib/supabase'
 import { authedFetch } from './lib/api'
 import UnifiedComposer, { type Item } from './components/UnifiedComposer'
 import Drafts from './components/Drafts'
+import Brainstorm from './components/Brainstorm'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
@@ -19,7 +20,7 @@ import Structure, { type StructureState, type NewCtx } from './components/Struct
 import { logoBlob, uploadLogo } from './lib/images'
 import { isPlaceholder, tagRegistry, slugTag, type Series, SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
 
-type View = 'home' | 'compose' | 'batch' | 'structure' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
+type View = 'home' | 'compose' | 'batch' | 'structure' | 'brainstorm' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -141,6 +142,16 @@ export default function Home() {
     setItems((prev) => prev.filter((i) => i.id !== item.id))
     if (editing?.id === item.id) setEditing(null)
   }
+  const addIdea = async (title: string, format: Format, seriesId: string | null) => {
+    if (!user) return
+    const { data, error } = await supabase.from('items').insert({
+      user_id: user.id, kind: format === 'longform' ? 'blog' : 'post', format, title, content: '', tone: 'casual', platforms: noPlatforms, hashtags: [], image_urls: [],
+      status: 'draft', stage: 'idea', publication_id: structure?.publication.id ?? null, series_id: seriesId, tags: [],
+    }).select().single()
+    if (error) return alert('Could not save the idea: ' + error.message)
+    upsertLocal(data as Item)
+  }
+  const startIdea = async (it: Item) => { await setStatus(it, { stage: 'drafting' } as Partial<Item>); edit({ ...it, stage: 'drafting' }) }
   const publishNow = async (item: Item) => {
     const r = await authedFetch('/api/publish', { method: 'POST', body: JSON.stringify({ id: item.id }) })
     const data = await r.json()
@@ -284,7 +295,8 @@ export default function Home() {
   }
 
   const tagOptions = structure ? tagRegistry(structure.buckets, items.filter((i) => i.publication_id === structure.publication.id)) : []
-  const drafts = items.filter((i) => i.status === 'draft' && !isPlaceholder(i))
+  const ideas = items.filter((i) => i.status === 'draft' && i.stage === 'idea' && !isPlaceholder(i))
+  const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea' && !isPlaceholder(i))
   const scheduled = items.filter((i) => i.status === 'scheduled')
   const queue = items.filter((i) => i.status !== 'draft')
 
@@ -293,6 +305,7 @@ export default function Home() {
     { key: 'compose', label: '✍️ Compose' },
     { key: 'batch', label: '⚡ Batch' },
     { key: 'structure', label: '🗂 Structure' },
+    { key: 'brainstorm', label: '🧠 Brainstorm', count: ideas.length },
     { key: 'drafts', label: '📝 Drafts', count: drafts.length },
     { key: 'calendar', label: '📅 Calendar' },
     { key: 'queue', label: '🚀 Queue', count: scheduled.length },
@@ -415,6 +428,7 @@ export default function Home() {
                 {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji} onNewSeries={createSeries}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} onCadence={setCadence} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
+                {view === 'brainstorm' && <Brainstorm items={ideas} structure={structure} onAdd={addIdea} onRename={(it, title) => setStatus(it, { title })} onStart={startIdea} onDelete={remove} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
                 {view === 'calendar' && <Calendar items={items.filter((i) => (i.schedule_date || i.planned_for) && !isPlaceholder(i))} onSelect={edit}
                   onMove={(it, date, time) => it.schedule_date ? setStatus(it, { schedule_date: date, schedule_time: time, ...(it.status === 'failed' ? { status: 'scheduled', publish_log: null } : {}) }) : placeItem(it, date, time)}
