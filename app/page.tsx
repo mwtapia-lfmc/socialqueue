@@ -432,9 +432,8 @@ export default function Home() {
               <>
                 <div className="flex items-center gap-3 mb-4">
                   <GlobalSearch items={items.filter((i) => !isPlaceholder(i))} notes={notes} onOpenItem={edit} onOpenNote={(n) => { setNotesFocus(n.id); go('notes') }} />
-                  <span className="flex-1" />
                   {view !== 'compose' && (
-                    <button onClick={() => { setEditing(null); go('compose') }} className="hidden md:inline-flex sq-btn-primary h-11 px-5 rounded-full text-base font-semibold items-center gap-2 shadow-md shrink-0">
+                    <button onClick={() => { setEditing(null); go('compose') }} className="hidden md:inline-flex ml-auto sq-btn-primary h-11 px-5 rounded-full text-base font-semibold items-center gap-2 shadow-md shrink-0">
                       <span className="text-xl leading-none">＋</span> New post
                     </button>
                   )}
