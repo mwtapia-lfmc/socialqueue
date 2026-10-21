@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { timeAgo } from '../lib/text'
-import { CADENCE, EMOJI_CHOICES, FORMAT_LABEL, STAGES, STAGE_STYLE, STRUCTURE_SQL, itemTags, seriesEmoji, stageOf, tagRegistry, ymd, type Format, type Series, type Stage, type StructureData, type TagInfo } from '../lib/structure'
+import { formatTime, timeAgo } from '../lib/text'
+import { CADENCE, EMOJI_CHOICES, FORMAT_LABEL, STAGES, STAGE_STYLE, STRUCTURE_SQL, itemTags, seriesEmoji, shortDate, stageOf, tagRegistry, weekDates, weekOfYear, ymd, type Format, type Series, type Stage, type StructureData, type TagInfo } from '../lib/structure'
 import type { Item } from './UnifiedComposer'
 
 export type StructureState = 'loading' | 'missing' | 'empty' | 'ready'
@@ -23,7 +23,8 @@ interface Props {
   onMarkPublished: (item: Item) => Promise<void>
   onDelete: (item: Item) => Promise<void>
   onPlan: () => Promise<void>
-  onPlace: (item: Item, date: string | null) => Promise<void>
+  onPlace: (item: Item, date: string | null, time?: string | null) => Promise<void>
+  onNewSeries: (name: string) => Promise<Series | null>
   onEmoji: (kind: 'series' | 'tag', ref: string, emoji: string) => Promise<void>
 }
 
@@ -84,7 +85,11 @@ export default function Structure(p: Props) {
   const [stageF, setStageF] = useState<'all' | Stage>('all')
   const [crossF, setCrossF] = useState('')
   // planner
-  const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()))
+  const todayWeek = weekOfYear(new Date())
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set([weekOfYear(new Date())]))
+  const [showPast, setShowPast] = useState(false)
+  const [addingSeries, setAddingSeries] = useState(false)
+  const [seriesName, setSeriesName] = useState('')
   const [openKey, setOpenKey] = useState<string | null | undefined>(undefined)
   const [repoFormat, setRepoFormat] = useState<Format>('note')
   const [innerTag, setInnerTag] = useState('')
@@ -95,6 +100,21 @@ export default function Structure(p: Props) {
   const [copied, setCopied] = useState(false)
 
   const mine = useMemo(() => (data ? items.filter((i) => i.publication_id === data.publication.id) : []), [items, data])
+  const toggleWeek = (n: number) => setExpanded((cur) => { const x = new Set(cur); x.has(n) ? x.delete(n) : x.add(n); return x })
+  const makeSeries = async () => {
+    const name = seriesName.trim(); if (!name) return
+    const made = await p.onNewSeries(name)
+    setSeriesName(''); setAddingSeries(false)
+    if (made) { setOpenKey('series:' + made.id); setSel({ kind: 'series', id: made.id }) }
+  }
+  const NewSeriesBox = (
+    addingSeries
+      ? <span className="flex items-center gap-1.5">
+          <input autoFocus value={seriesName} onChange={(e) => setSeriesName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') makeSeries(); if (e.key === 'Escape') setAddingSeries(false) }} placeholder="Series name" className="h-7 w-32 px-2 text-xs rounded-lg border border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-200 normal-case font-normal" />
+          <button onClick={makeSeries} className="text-[11px] px-2 py-1 rounded-md bg-[#ff6719] text-white normal-case font-medium">Add</button>
+        </span>
+      : <button onClick={() => setAddingSeries(true)} className="text-[11px] px-2 py-1 rounded-md bg-orange-100 text-orange-900 hover:bg-orange-200 normal-case font-medium">+ New series</button>
+  )
   const run = async (fn: () => Promise<void>) => { setBusy(true); try { await fn() } finally { setBusy(false) } }
 
   if (state === 'loading') return <div className="sq-card p-10 text-center text-gray-400 sq-pulse">Loading structure…</div>
@@ -155,13 +175,10 @@ export default function Structure(p: Props) {
 
   // ---------------- PLANNER ----------------
   if (mode === 'planner') {
-    const days = Array.from({ length: 7 }, (_, i) => ymd(addDays(weekStart, i)))
-    const weekEnd = addDays(weekStart, 6)
-    const rangeTitle = `${weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
-
+    const year = new Date().getFullYear()
     const placedDate = (i: Item) => i.planned_for || (stageOf(i) === 'published' && i.published_at ? ymd(new Date(i.published_at)) : null)
-    const inCell = (day: string, f: Format) => mine.filter((i) => placedDate(i) === day && fmtOf(i) === f)
-    const placedThisWeek = (f: Format) => days.reduce((n, d) => n + inCell(d, f).length, 0)
+    const inCell = (day: string, f: Format) => mine.filter((i) => placedDate(i) === day && fmtOf(i) === f).sort((a, b) => (a.planned_time || '99').localeCompare(b.planned_time || '99'))
+    const countIn = (days: string[], f: Format) => days.reduce((n, d) => n + inCell(d, f).length, 0)
 
     const repo = mine.filter((i) => !i.planned_for && stageOf(i) !== 'published' && fmtOf(i) === repoFormat
       && (!repoQuery.trim() || `${label(i)} ${(i.tags || []).join(' ')}`.toLowerCase().includes(repoQuery.trim().toLowerCase())))
@@ -241,11 +258,14 @@ export default function Structure(p: Props) {
       const canDrop = !!dragged && fmtOf(dragged) === f
       return (
         <div onDragOver={(e) => { if (dragged) { e.preventDefault(); setOverKey(key) } }} onDragLeave={() => setOverKey((k) => (k === key ? null : k))} onDrop={(e) => { e.preventDefault(); drop(day, f) }}
-          className={`rounded-xl border p-1.5 min-h-[92px] space-y-1.5 transition ${overKey === key && canDrop ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-200' : dragged ? (canDrop ? 'border-dashed border-orange-300 bg-orange-50/30' : 'border-dashed border-gray-200 opacity-50') : day === todayKey ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-200 bg-white/70'}`}>
+          className={`rounded-xl border p-1.5 min-h-[76px] space-y-1.5 transition ${overKey === key && canDrop ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-200' : dragged ? (canDrop ? 'border-dashed border-orange-300 bg-orange-50/30' : 'border-dashed border-gray-200 opacity-50') : day === todayKey ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-200 bg-white/70'}`}>
           {list.map((it) => {
             const st = stageOf(it)
             return (
               <div key={it.id} {...dragProps(it)} className={`group relative rounded-lg border px-2 py-1.5 text-left ${st === 'published' ? 'border-emerald-200 bg-emerald-50' : 'border-orange-200 bg-orange-50 cursor-grab active:cursor-grabbing'} ${dragId === it.id ? 'opacity-40' : ''}`}>
+                {st !== 'published'
+                  ? <label className="flex items-center gap-1 text-[11px] font-semibold text-orange-900 mb-0.5 cursor-pointer" title="Set the time">🕘<input type="time" value={(it.planned_time || '').slice(0, 5)} onChange={(e) => e.target.value && p.onPlace(it, it.planned_for || null, e.target.value)} className="bg-transparent w-[96px] text-[11px] font-semibold" /></label>
+                  : it.published_at && <span className="block text-[11px] font-semibold text-emerald-800 mb-0.5">🕘 {new Date(it.published_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
                 <button onClick={() => p.onOpen(it)} className="block w-full text-left">
                   <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full mb-0.5 ${STAGE_STYLE[st]}`}>{st}</span>
                   <span className="block text-[12px] leading-snug line-clamp-3">{label(it)}</span>
@@ -278,51 +298,64 @@ export default function Structure(p: Props) {
             </div>
             <input value={repoQuery} onChange={(e) => setRepoQuery(e.target.value)} placeholder="Search titles and tags" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200" />
 
-            <p className="px-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Series</p>
+            <div className="px-1 pt-1 flex items-center justify-between"><p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Series</p>{NewSeriesBox}</div>
             <div className="space-y-2">{seriesGroups.map(renderGroup)}</div>
             <p className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Buckets <span className="normal-case font-normal">· tags create these</span></p>
             <div className="space-y-2">{tagGroups.length ? tagGroups.map(renderGroup) : <p className="text-xs text-gray-400 px-1">No tagged {repoFormat === 'note' ? 'notes' : 'longform'} waiting. Add tags in the composer.</p>}</div>
             {repo.length === 0 && <p className="text-xs text-gray-400 text-center pt-2">Nothing waiting. Compose a {repoFormat === 'note' ? 'Note' : 'Longform'} in Compose, or press + New.</p>}
           </aside>
 
-          {/* ---------- week ---------- */}
-          <section className="sq-card p-4 md:p-5 min-w-0 space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1">
-                <button onClick={() => setWeekStart(addDays(weekStart, -7))} className="sq-tool h-9 w-9 rounded-full text-lg" aria-label="Previous week">‹</button>
-                <button onClick={() => setWeekStart(mondayOf(new Date()))} className="sq-tool h-9 px-3 rounded-full text-sm font-medium">Today</button>
-                <button onClick={() => setWeekStart(addDays(weekStart, 7))} className="sq-tool h-9 w-9 rounded-full text-lg" aria-label="Next week">›</button>
-              </div>
-              <h3 className="text-lg font-bold">{rangeTitle}</h3>
-              <span className="flex-1" />
-              <div className="flex gap-2 text-sm">
-                <span className="px-3 py-1 rounded-full bg-orange-50 text-orange-900">Notes <strong className={placedThisWeek('note') >= CADENCE.note ? 'text-emerald-600' : ''}>{placedThisWeek('note')}/{CADENCE.note}</strong></span>
-                <span className="px-3 py-1 rounded-full bg-orange-50 text-orange-900">Longform <strong className={placedThisWeek('longform') >= CADENCE.longform ? 'text-emerald-600' : ''}>{placedThisWeek('longform')}/{CADENCE.longform}</strong></span>
-              </div>
+          {/* ---------- weeks: one tile each, current week first ---------- */}
+          <section className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center gap-3 px-1">
+              <div className="mr-auto"><h3 className="text-lg font-bold">{year} · Weeks {showPast ? 1 : todayWeek}–52</h3><p className="text-[11px] text-gray-500">Week 1 starts Jan 1 · Week 52 ends Dec 31. Click a week to open or close it. Drag a title onto a day.</p></div>
+              {todayWeek > 1 && <button onClick={() => setShowPast((v) => !v)} className="text-xs px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200">{showPast ? 'Hide earlier weeks' : `Show earlier weeks (${todayWeek - 1})`}</button>}
               <button onClick={() => confirm('Create 14 Note placeholders and 2 Longform placeholders on the calendar over the next two weeks?') && run(p.onPlan)} disabled={busy} className="text-xs px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200">{busy ? 'Planning…' : 'Plan 2 weeks'}</button>
             </div>
 
-            <div className="overflow-x-auto sq-scroll">
-              <div className="min-w-[860px]">
-                <div className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))] gap-2 mb-2">
-                  <div />
-                  {days.map((d) => { const dt = parse(d); const isToday = d === todayKey; return (
-                    <div key={d} className={`rounded-xl text-center py-2 ${isToday ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                      <div className="text-[10px] uppercase font-semibold tracking-wide">{dt.toLocaleDateString(undefined, { weekday: 'short' })}</div>
-                      <div className="text-xl font-extrabold leading-none">{dt.getDate()}</div>
-                      <div className="text-[10px] opacity-80">{dt.toLocaleDateString(undefined, { month: 'short' })}</div>
+            {Array.from({ length: 52 - (showPast ? 1 : todayWeek) + 1 }, (_, i) => (showPast ? 1 : todayWeek) + i).map((n) => {
+              const days = weekDates(year, n)
+              const open = expanded.has(n)
+              const isNow = n === todayWeek
+              const notes = countIn(days, 'note'), longs = countIn(days, 'longform')
+              const cols = `64px repeat(${days.length}, minmax(0, 1fr))`
+              return (
+                <div key={n} onDragOver={(e) => { if (dragged && !open) { e.preventDefault(); toggleWeek(n) } }}
+                  className={`rounded-2xl border bg-white/80 backdrop-blur ${isNow ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
+                  <button onClick={() => toggleWeek(n)} className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left">
+                    <span className={`text-sm font-extrabold px-2.5 py-1 rounded-lg ${isNow ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Week {n}</span>
+                    <span className="text-sm text-gray-600">{shortDate(days[0])} – {shortDate(days[days.length - 1])}</span>
+                    {isNow && <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">this week</span>}
+                    <span className="flex-1" />
+                    <span className="hidden sm:flex gap-1">{days.map((d) => { const c = inCell(d, 'note').length + inCell(d, 'longform').length; return <span key={d} title={`${prettyDate(d)}: ${c}`} className={`h-2.5 w-2.5 rounded-sm ${c ? 'bg-orange-400' : 'bg-gray-200'}`} /> })}</span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-50 text-orange-900">Notes <strong className={notes >= CADENCE.note ? 'text-emerald-600' : ''}>{notes}/{CADENCE.note}</strong></span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-orange-50 text-orange-900">Longform <strong className={longs >= CADENCE.longform ? 'text-emerald-600' : ''}>{longs}/{CADENCE.longform}</strong></span>
+                    <span className="text-gray-400 text-xs">{open ? '▾' : '▸'}</span>
+                  </button>
+                  {open && (
+                    <div className="px-3 pb-3 overflow-x-auto sq-scroll">
+                      <div className="min-w-[820px]">
+                        <div className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: cols }}>
+                          <div />
+                          {days.map((d) => { const dt = parse(d); const isToday = d === todayKey; return (
+                            <div key={d} className={`rounded-lg text-center py-1 text-[11px] font-semibold ${isToday ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                              {dt.toLocaleDateString(undefined, { weekday: 'short' })} {dt.getDate()}<span className="font-normal opacity-70"> {dt.toLocaleDateString(undefined, { month: 'short' })}</span>
+                            </div>
+                          ) })}
+                        </div>
+                        {(['note', 'longform'] as Format[]).map((f) => (
+                          <div key={f} className="grid gap-1.5 mb-1.5" style={{ gridTemplateColumns: cols }}>
+                            <div className="pt-1.5"><p className="text-[11px] font-bold">{FORMAT_LABEL[f]}s</p></div>
+                            {days.map((d) => <Cell key={d} day={d} f={f} />)}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ) })}
+                  )}
                 </div>
-                {(['note', 'longform'] as Format[]).map((f) => (
-                  <div key={f} className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))] gap-2 mb-2">
-                    <div className="pt-2"><p className="text-xs font-bold">{FORMAT_LABEL[f]}s</p><p className="text-[10px] text-gray-400">{f === 'note' ? 'discovery' : 'consideration'}</p></div>
-                    {days.map((d) => <Cell key={d} day={d} f={f} />)}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <p className="text-[11px] text-gray-400">Drag cards from the repository onto a day. Notes go in the Notes row, longform in the Longform row. Drag a placed card to another day, or back to the repository. Click an empty cell to start a new post for that date.</p>
+              )
+            })}
+            <p className="text-[11px] text-gray-400 px-1">Notes go in the Notes row and longform in the Longform row. Drag a placed card to another day or back to the repository. Set a time on any card. Everything here also shows on the Calendar.</p>
           </section>
         </div>
       </div>
@@ -385,7 +418,7 @@ export default function Structure(p: Props) {
       <div className="grid lg:grid-cols-[260px_1fr] gap-6">
         <nav className="sq-card p-3 self-start lg:sticky lg:top-6 space-y-1">
           {navBtn({ kind: 'all' }, '🗂 All posts', countText(mine))}
-          <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Series</p>
+          <div className="px-3 pt-3 pb-1 flex items-center justify-between"><p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Series</p>{NewSeriesBox}</div>
           {series.map((x) => navBtn({ kind: 'series', id: x.id }, <span className="flex items-center gap-2">{x.logo_url ? <img src={x.logo_url} alt="" className="h-5 w-5 rounded object-cover border border-orange-100" /> : null}<span>{seriesEmoji(x)}</span>{x.name}</span>, countText(mine.filter((i) => i.series_id === x.id))))}
           <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Buckets <span className="normal-case font-normal">· tags</span></p>
           {registry.map((t) => navBtn({ kind: 'tag', key: t.key }, <span className="flex items-center gap-2"><span>{t.emoji}</span>#{t.name}</span>, t.count ? countText(mine.filter((i) => itemTags(i, buckets).includes(t.key))) : 'unused'))}

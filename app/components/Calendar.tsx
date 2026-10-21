@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { PLATFORM_META, formatTime, parseYmd, type Platform } from '../lib/text'
 import type { Item } from './UnifiedComposer'
+import { blockStart, dayIndex, weekOfYear } from '../lib/structure'
 
 interface Props {
   items: Item[]
@@ -15,11 +16,15 @@ type Mode = 'month' | 'week' | 'agenda'
 const PLATFORMS = Object.keys(PLATFORM_META) as Platform[]
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(d.getDate() + n); return x }
-const startOfWeek = (d: Date) => addDays(d, -d.getDay())
+const startOfWeek = (d: Date) => blockStart(d)
+const dateOf = (it: Item) => it.schedule_date || it.planned_for || null
+const timeOf = (it: Item) => it.schedule_time || it.planned_time || null
+const isPlan = (it: Item) => !it.schedule_date && !!it.planned_for
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6) // 6am → 11pm
 const platformsOf = (it: Item) => PLATFORMS.filter((p) => it.platforms?.[p])
 const statusCls = (it: Item) =>
-  it.status === 'published' ? 'bg-emerald-100 text-emerald-900 border-emerald-200'
+  isPlan(it) && it.status !== 'published' ? (it.stage === 'idea' ? 'bg-orange-50 text-orange-800 border-orange-200 border-dashed' : 'bg-orange-100 text-orange-900 border-orange-200')
+  : it.status === 'published' ? 'bg-emerald-100 text-emerald-900 border-emerald-200'
   : it.status === 'failed' ? 'bg-red-100 text-red-900 border-red-200'
   : it.kind === 'blog' ? 'bg-purple-100 text-purple-900 border-purple-200'
   : 'bg-blue-100 text-blue-900 border-blue-200'
@@ -42,13 +47,13 @@ export default function Calendar({ items, onSelect, onMove, onCreate }: Props) {
 
   const byDay = useMemo(() => {
     const m = new Map<string, Item[]>()
-    for (const it of filtered) if (it.schedule_date) m.set(it.schedule_date, [...(m.get(it.schedule_date) || []), it])
-    for (const v of m.values()) v.sort((a, b) => (a.schedule_time || '').localeCompare(b.schedule_time || ''))
+    for (const it of filtered) { const k = dateOf(it); if (k) m.set(k, [...(m.get(k) || []), it]) }
+    for (const v of m.values()) v.sort((a, b) => (timeOf(a) || '').localeCompare(timeOf(b) || ''))
     return m
   }, [filtered])
 
   const title = mode === 'month' ? cursor.toLocaleString('default', { month: 'long', year: 'numeric' })
-    : mode === 'week' ? `${startOfWeek(cursor).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${addDays(startOfWeek(cursor), 6).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
+    : mode === 'week' ? `Week ${weekOfYear(cursor)} · ${startOfWeek(cursor).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${addDays(startOfWeek(cursor), 6).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`
     : 'Next 30 days'
   const step = (dir: 1 | -1) => setCursor(mode === 'month' ? new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1) : addDays(cursor, 7 * dir))
 
@@ -56,7 +61,7 @@ export default function Calendar({ items, onSelect, onMove, onCreate }: Props) {
     if (!dragging) return
     const it = dragging; setDragging(null); setDropTarget(null)
     if (it.status === 'published') return
-    await onMove(it, date, time || it.schedule_time || '09:00')
+    await onMove(it, date, time || timeOf(it) || '09:00')
   }
   const dragProps = (it: Item) => it.status === 'published' ? {} : {
     draggable: true,
@@ -70,42 +75,53 @@ export default function Calendar({ items, onSelect, onMove, onCreate }: Props) {
   })
 
   const Chip = ({ it, compact = false }: { it: Item; compact?: boolean }) => (
-    <button onClick={(e) => { e.stopPropagation(); onSelect(it) }} title={`${it.status} · ${formatTime(it.schedule_time)}\n${it.title || it.content}`} {...dragProps(it)}
+    <button onClick={(e) => { e.stopPropagation(); onSelect(it) }} title={`${isPlan(it) ? 'planned' : it.status} · ${formatTime(timeOf(it))}\n${it.title || it.hook || it.content}`} {...dragProps(it)}
       className={`w-full text-left rounded-md border px-1.5 py-1 text-[11px] leading-tight transition hover:brightness-95 ${statusCls(it)} ${it.status === 'published' ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${dragging?.id === it.id ? 'opacity-40' : ''}`}>
       <span className="flex items-center gap-1">
-        <span className="font-semibold shrink-0">{statusIcon(it)}{compact ? '' : formatTime(it.schedule_time)}</span>
-        <span className="shrink-0">{it.kind === 'blog' ? '📝' : platformsOf(it).map((p) => PLATFORM_META[p].icon).join('')}</span>
-        <span className="truncate">{it.title || it.content.split('\n')[0]}</span>
+        <span className="font-semibold shrink-0">{statusIcon(it)}{compact ? '' : formatTime(timeOf(it))}</span>
+        <span className="shrink-0">{isPlan(it) ? (it.format === 'longform' ? '📰' : '🗒') : it.kind === 'blog' ? '📝' : platformsOf(it).map((p) => PLATFORM_META[p].icon).join('')}</span>
+        <span className="truncate">{it.title || it.hook || it.content.split('\n')[0]}</span>
       </span>
     </button>
   )
 
-  // ---------- MONTH ----------
+  // ---------- MONTH (rows are the numbered weeks of the year) ----------
   const Month = () => {
     const y = cursor.getFullYear(), m = cursor.getMonth()
-    const first = new Date(y, m, 1); const gridStart = startOfWeek(first)
-    const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i))
+    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0)
+    const rows: Date[] = []
+    for (let d = startOfWeek(first); d <= last; d = addDays(d, 7)) rows.push(d)
+    const head = Array.from({ length: 7 }, (_, i) => addDays(rows[0], i).toLocaleDateString(undefined, { weekday: 'short' }))
     return (
       <>
-        <div className="grid grid-cols-7 gap-1.5 mb-1.5">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => <div key={d} className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wide py-1">{d}</div>)}</div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {cells.map((d) => {
-            const key = ymd(d); const inMonth = d.getMonth() === m; const isToday = key === todayKey
-            const dayItems = byDay.get(key) || []; const open = expandedDay === key
-            const show = open ? dayItems : dayItems.slice(0, 3)
+        <div className="grid grid-cols-[48px_repeat(7,minmax(0,1fr))] gap-1.5 mb-1.5"><div />{head.map((d, i) => <div key={i} className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wide py-1">{d}</div>)}</div>
+        <div className="space-y-1.5">
+          {rows.map((rowStart) => {
+            const idx = Math.floor(dayIndex(rowStart) / 7) + 1
             return (
-              <div key={key} {...dropProps(key, key)} onClick={() => onCreate(key, '09:00')}
-                className={`relative min-h-28 rounded-xl p-1.5 border transition cursor-pointer ${dropTarget === key ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200' : isToday ? 'border-indigo-300 bg-indigo-50/60' : inMonth ? 'border-gray-100 bg-white/70 hover:bg-white' : 'border-transparent bg-white/30 text-gray-300'} ${open ? 'z-10 col-span-1 row-span-2' : ''}`}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-xs font-semibold ${isToday ? 'h-5 w-5 rounded-full bg-indigo-600 text-white flex items-center justify-center' : inMonth ? 'text-gray-600' : 'text-gray-300'}`}>{d.getDate()}</span>
-                  {dayItems.length > 0 && <span className="text-[10px] text-gray-400">{dayItems.length}</span>}
-                </div>
-                <div className="space-y-1">
-                  {show.map((it) => <Chip key={it.id} it={it} />)}
-                  {!open && dayItems.length > 3 && <button onClick={(e) => { e.stopPropagation(); setExpandedDay(key) }} className="text-[10px] text-indigo-600 hover:underline px-1">+{dayItems.length - 3} more</button>}
-                  {open && <button onClick={(e) => { e.stopPropagation(); setExpandedDay(null) }} className="text-[10px] text-gray-500 hover:underline px-1">collapse</button>}
-                </div>
-                {dayItems.length === 0 && inMonth && <span className="absolute inset-x-0 bottom-1.5 text-center text-[10px] text-gray-300 opacity-0 hover:opacity-100 transition">+ new post</span>}
+              <div key={rowStart.toISOString()} className="grid grid-cols-[48px_repeat(7,minmax(0,1fr))] gap-1.5">
+                <button onClick={() => { setCursor(rowStart); setMode('week') }} title="Open this week" className="rounded-lg bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 text-[10px] font-bold leading-tight flex flex-col items-center justify-center">
+                  <span className="uppercase tracking-wide opacity-70">Wk</span><span className="text-sm">{weekOfYear(rowStart)}{idx > 52 ? '+' : ''}</span>
+                </button>
+                {Array.from({ length: 7 }, (_, i) => addDays(rowStart, i)).map((d) => {
+                  const key = ymd(d); const inMonth = d.getMonth() === m; const isToday = key === todayKey
+                  const dayItems = byDay.get(key) || []; const open = expandedDay === key
+                  const show = open ? dayItems : dayItems.slice(0, 3)
+                  return (
+                    <div key={key} {...dropProps(key, key)} onClick={() => onCreate(key, '09:00')}
+                      className={`relative min-h-24 rounded-xl p-1.5 border transition cursor-pointer ${dropTarget === key ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200' : isToday ? 'border-indigo-300 bg-indigo-50/60' : inMonth ? 'border-gray-100 bg-white/70 hover:bg-white' : 'border-transparent bg-white/30 text-gray-300'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-xs font-semibold ${isToday ? 'h-5 w-5 rounded-full bg-indigo-600 text-white flex items-center justify-center' : inMonth ? 'text-gray-600' : 'text-gray-300'}`}>{d.getDate()}</span>
+                        {dayItems.length > 0 && <span className="text-[10px] text-gray-400">{dayItems.length}</span>}
+                      </div>
+                      <div className="space-y-1">
+                        {show.map((it) => <Chip key={it.id} it={it} />)}
+                        {!open && dayItems.length > 3 && <button onClick={(e) => { e.stopPropagation(); setExpandedDay(key) }} className="text-[10px] text-indigo-600 hover:underline px-1">+{dayItems.length - 3} more</button>}
+                        {open && <button onClick={(e) => { e.stopPropagation(); setExpandedDay(null) }} className="text-[10px] text-gray-500 hover:underline px-1">collapse</button>}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )
           })}
@@ -145,9 +161,9 @@ export default function Calendar({ items, onSelect, onMove, onCreate }: Props) {
                       className={`border-t border-gray-100 hover:bg-indigo-50/70 cursor-pointer transition ${dropTarget === k ? 'bg-indigo-100' : ''}`} style={{ height: rowH }} />
                   })}
                   {dayItems.map((it, i) => {
-                    const top = (hourOf(it.schedule_time) - HOURS[0]) * rowH
+                    const top = (hourOf(timeOf(it)) - HOURS[0]) * rowH
                     if (top < 0 || top > rowH * HOURS.length) return null
-                    const overlap = dayItems.filter((o) => o.schedule_time === it.schedule_time); const idx = overlap.indexOf(it)
+                    const overlap = dayItems.filter((o) => timeOf(o) === timeOf(it)); const idx = overlap.indexOf(it)
                     return (
                       <div key={it.id} className="absolute left-0.5 right-0.5 px-0.5" style={{ top: top + idx * 22 + 1, zIndex: 2 }}>
                         <Chip it={it} compact />
@@ -183,8 +199,8 @@ export default function Calendar({ items, onSelect, onMove, onCreate }: Props) {
             <div className="flex-1 space-y-1.5">
               {(byDay.get(k) || []).map((it) => (
                 <button key={it.id} onClick={() => onSelect(it)} className={`w-full text-left rounded-xl border px-3 py-2 flex items-start gap-3 hover:brightness-95 ${statusCls(it)}`}>
-                  <span className="text-xs font-semibold w-16 shrink-0">{formatTime(it.schedule_time)}</span>
-                  <span className="text-xs shrink-0">{it.kind === 'blog' ? '📝' : platformsOf(it).map((p) => PLATFORM_META[p].icon).join(' ')}</span>
+                  <span className="text-xs font-semibold w-16 shrink-0">{formatTime(timeOf(it))}</span>
+                  <span className="text-xs shrink-0">{isPlan(it) ? (it.format === 'longform' ? '📰' : '🗒') : it.kind === 'blog' ? '📝' : platformsOf(it).map((p) => PLATFORM_META[p].icon).join(' ')}</span>
                   <span className="text-sm line-clamp-2 flex-1">{statusIcon(it) && <span className="mr-1">{statusIcon(it)}</span>}{it.title || it.content}</span>
                 </button>
               ))}

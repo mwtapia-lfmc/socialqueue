@@ -32,6 +32,7 @@ export interface Item {
   hook?: string | null
   stage?: 'idea' | 'drafting' | null
   planned_for?: string | null
+  planned_time?: string | null
   source_item_id?: string | null
   tags?: string[] | null
   status: 'draft' | 'scheduled' | 'published' | 'failed'
@@ -49,6 +50,7 @@ interface Props {
   connections?: Connection[]
   structure?: StructureData | null
   tagOptions?: TagInfo[]
+  onNewSeries?: (name: string) => Promise<{ id: string } | null>
   item: Item | null
   onSaved: (item: Item) => void
   onScheduled: () => void
@@ -57,6 +59,7 @@ interface Props {
 const TONES = ['casual', 'professional', 'funny', 'inspirational', 'urgent']
 const EMOJIS = ['🔥', '✨', '🚀', '💡', '🎯', '👀', '🙌', '💯', '📣', '🧠', '❤️', '😂', '🤔', '✅', '👇', '🎉']
 const PLATFORMS = Object.keys(PLATFORM_META) as Platform[]
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, 'id' | 'created_at' | 'updated_at'> => ({
   kind: 'post',
@@ -75,7 +78,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], onNewSeries, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -110,21 +113,19 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     setSaveState('dirty')
   }
 
-  type ComposeType = 'post' | 'note' | 'longform'
+  type ComposeType = 'post' | 'longform'
   const typeOf = (d: { kind: string; format?: string | null; publication_id?: string | null }): ComposeType =>
-    d.kind === 'blog' ? 'longform' : d.publication_id && d.format === 'note' ? 'note' : 'post'
+    d.kind === 'blog' ? 'longform' : 'post'
   const type = typeOf(draft)
-  const isSubstack = type !== 'post'
+  const isLong = type === 'longform'
   const [newTag, setNewTag] = useState('')
   const [copiedSub, setCopiedSub] = useState(false)
 
   const setType = (t: ComposeType) => {
     if (t === 'post') {
       const anyOn = PLATFORMS.some((q) => draft.platforms[q])
-      update({ kind: 'post', format: null, publication_id: null, platforms: anyOn ? draft.platforms : empty(accounts).platforms })
-    } else if (structure) {
-      update({ kind: t === 'longform' ? 'blog' : 'post', format: t, publication_id: draft.publication_id ?? structure.publication.id, stage: draft.stage ?? 'drafting' })
-    } else update({ kind: t === 'longform' ? 'blog' : 'post' })
+      update({ kind: 'post', format: 'note', platforms: anyOn ? draft.platforms : empty(accounts).platforms })
+    } else update({ kind: 'blog', format: 'longform' })
   }
   const addTag = (raw: string) => {
     const k = slugTag(raw); if (!k || (draft.tags || []).includes(k)) { setNewTag(''); return }
@@ -145,14 +146,12 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
         analysis: draft.analysis,
         overrides: draft.overrides || {},
         accounts: draft.accounts || {},
-        // Substack structure fields (Notes and Longform belong to the publication; plain posts clear them)
-        ...(structure ? (() => {
-          const t = typeOf(draft)
-          return t === 'post'
-            ? { publication_id: null, series_id: null, format: null, stage: null, tags: [], hook: null, planned_for: draft.planned_for || null }
-            : { publication_id: draft.publication_id ?? structure.publication.id, series_id: draft.series_id ?? null, bucket_id: draft.bucket_id ?? null, format: t, hook: draft.hook || null,
-                stage: draft.stage ?? 'drafting', planned_for: draft.planned_for || null, source_item_id: draft.source_item_id ?? null, tags: draft.tags ?? [] }
-        })() : {}),
+        // Everything composed is filed under the publication: short-form as a Note/Post, long-form as Longform
+        ...(structure ? {
+          publication_id: draft.publication_id ?? structure.publication.id, series_id: draft.series_id ?? null, bucket_id: draft.bucket_id ?? null,
+          format: typeOf(draft) === 'longform' ? 'longform' : 'note', hook: draft.hook || null, stage: draft.stage ?? 'drafting',
+          planned_for: draft.planned_for || null, planned_time: draft.planned_for ? (draft.planned_time || null) : null, source_item_id: draft.source_item_id ?? null, tags: draft.tags ?? [],
+        } : {}),
         updated_at: new Date().toISOString(),
         ...extra,
       }
@@ -162,7 +161,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
         : supabase.from('items').insert(payload).select().single()
       let { data, error } = await q
       if (!error) setSaveError(null)
-      const OPTIONAL = ['overrides', 'accounts', 'publication_id', 'series_id', 'bucket_id', 'format', 'hook', 'stage', 'planned_for', 'source_item_id', 'tags']
+      const OPTIONAL = ['overrides', 'accounts', 'planned_time', 'publication_id', 'series_id', 'bucket_id', 'format', 'hook', 'stage', 'planned_for', 'source_item_id', 'tags']
       if (error && new RegExp(OPTIONAL.join('|')).test(error.message)) {
         const slim: Record<string, unknown> = { ...payload }
         for (const k of OPTIONAL) delete slim[k]
@@ -328,10 +327,10 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
         <div className="sq-card p-5 md:p-6 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-1 p-1 bg-gray-100 rounded-full">
-              {(structure ? (['post', 'note', 'longform'] as const) : (['post', 'longform'] as const)).map((t) => (
+              {(['post', 'longform'] as const).map((t) => (
                 <button key={t} type="button" onClick={() => setType(t)}
                   className={`sq-tab px-4 py-1.5 rounded-full text-sm font-medium ${type === t ? 'sq-tab-active' : 'text-gray-600 hover:text-gray-900'}`}>
-                  {t === 'post' ? '💬 Post' : t === 'note' ? '🗒 Note' : '📰 Longform'}
+                  {t === 'post' ? '💬 Post / Note' : '📰 Longform'}
                 </button>
               ))}
             </div>
@@ -356,7 +355,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
           )}
 
           <div>
-            {isSubstack && (
+            {isLong && (
               <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook — the line someone will screenshot"
                 className="w-full mb-2 text-[15px] italic bg-orange-50/60 border border-orange-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300" />
             )}
@@ -397,7 +396,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               ref={textareaRef}
               value={draft.content}
               onChange={(e) => update({ content: e.target.value })}
-              placeholder={type === 'longform' ? 'Write your article. **bold**, _italic_, ## headings, - lists…' : type === 'note' ? 'Write your Note…' : "What's happening? **bold** and _italic_ become styled text on social."}
+              placeholder={type === 'longform' ? 'Write your article. **bold**, _italic_, ## headings, - lists…' : "What's happening? **bold** and _italic_ become styled text on social."}
               rows={draft.kind === 'blog' ? 14 : 7}
               className="w-full p-4 text-[15px] leading-relaxed border border-gray-200 rounded-xl bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
             />
@@ -451,17 +450,26 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
             </div>
           )}
 
-          {isSubstack && structure && (
+          {structure && (
             <div className="rounded-xl bg-orange-50/50 border border-orange-100 p-3 space-y-2.5">
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <label className="flex items-center gap-1.5 text-gray-700 font-medium">Series
-                  <select value={draft.series_id || ''} onChange={(e) => update({ series_id: e.target.value || null })} className="h-8 text-sm bg-white border border-gray-200 rounded-lg px-2 font-normal">
+                  <select value={draft.series_id || ''} onChange={async (e) => {
+                    if (e.target.value !== '__new__') return update({ series_id: e.target.value || null })
+                    const name = onNewSeries ? window.prompt('Name your new series') : null
+                    if (name?.trim()) { const made = await onNewSeries!(name.trim()); if (made) update({ series_id: made.id }) }
+                  }} className="h-8 text-sm bg-white border border-gray-200 rounded-lg px-2 font-normal">
                     <option value="">No series</option>
+                    {onNewSeries && <option value="__new__">＋ New series…</option>}
                     {structure.series.map((x) => <option key={x.id} value={x.id}>{seriesEmoji(x)} {x.name}</option>)}
                   </select>
                 </label>
-                {draft.planned_for && <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700">📅 planned {draft.planned_for} <button type="button" onClick={() => update({ planned_for: null })} className="ml-1 text-blue-400 hover:text-red-600">×</button></span>}
-                <span className="text-gray-400">Substack can't be posted to from here, so Notes and Longform are saved, then pasted into Substack.</span>
+                <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-50 text-blue-700">📅
+                  <input type="date" value={draft.planned_for || ''} onChange={(e) => update({ planned_for: e.target.value || null })} className="h-6 bg-transparent text-xs" />
+                  <input type="time" value={(draft.planned_time || '').slice(0, 5)} onChange={(e) => update({ planned_time: e.target.value || null, planned_for: draft.planned_for || ymdLocal(new Date()) })} className="h-6 bg-transparent text-xs" />
+                  {draft.planned_for && <button type="button" onClick={() => update({ planned_for: null, planned_time: null })} className="text-blue-400 hover:text-red-600">×</button>}
+                </span>
+                <span className="text-gray-400">{isLong ? "Saved here, then pasted into Substack — it can't be posted to from this app." : 'Every post is also filed here as a Substack Note — saved, then pasted into Substack.'}</span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="text-gray-500 mr-1">Tags</span>
@@ -489,6 +497,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                   {PLATFORM_META[p].icon} {PLATFORM_META[p].label}
                 </button>
               ))}
+              {structure && <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border border-orange-200 bg-orange-50 text-orange-800" title="Always saved. Use Copy for Substack to post it there."><span className="h-2.5 w-2.5 rounded-full bg-orange-400" />🗒 Substack Note · saved</span>}
               {PLATFORMS.filter((p) => draft.platforms[p] && connsFor(p).length > 1).map((p) => (
                 <label key={`acct-${p}`} className="basis-full flex items-center gap-2 text-xs text-gray-600">
                   <span>{PLATFORM_META[p].icon} {PLATFORM_META[p].label} posts as</span>
@@ -520,11 +529,8 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
 
           {type === 'longform' ? (
             <SubstackPreview title={draft.title || ''} content={draft.content} image={firstImage} author={Object.values(identities)[0]} />
-          ) : type === 'note' ? (
-            <SubstackNotePreview text={draft.content} hook={draft.hook} author={Object.values(identities)[0]}
-              series={structure?.series.find((x) => x.id === draft.series_id) ? { name: structure!.series.find((x) => x.id === draft.series_id)!.name, emoji: seriesEmoji(structure!.series.find((x) => x.id === draft.series_id)!) } : null}
-              tags={(draft.tags || []).map((k) => ({ key: k, emoji: tagOptions.find((t) => t.key === k)?.emoji || '🏷️' }))} />
           ) : (
+            <div className="space-y-4">
             <PlatformPreviews
               accounts={connections.length ? identities : accounts}
               selected={draft.platforms}
@@ -538,6 +544,12 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                 update({ overrides: next })
               }}
             />
+            {structure && (
+            <SubstackNotePreview text={draft.content} hook={draft.hook} author={Object.values(identities)[0]}
+              series={structure?.series.find((x) => x.id === draft.series_id) ? { name: structure!.series.find((x) => x.id === draft.series_id)!.name, emoji: seriesEmoji(structure!.series.find((x) => x.id === draft.series_id)!) } : null}
+              tags={(draft.tags || []).map((k) => ({ key: k, emoji: tagOptions.find((t) => t.key === k)?.emoji || '🏷️' }))} />
+            )}
+            </div>
           )}
 
           {draft.analysis && (
@@ -589,7 +601,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
             className="px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-800 hover:bg-gray-200">
             {type === 'post' ? 'Save draft' : '💾 Save'}
           </button>
-          {isSubstack && (
+          {structure && (
             <button type="button" disabled={!draft.content.trim()} onClick={async () => {
               if (type === 'longform') {
                 const html = `<h1>${(draft.title || '').replace(/</g, '&lt;')}</h1>${markdownToHtml(draft.content)}`

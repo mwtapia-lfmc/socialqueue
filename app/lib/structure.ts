@@ -150,3 +150,18 @@ export function tagRegistry(buckets: Bucket[], items: Item[]): TagInfo[] {
     }
   }).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 }
+
+// ---- weeks of the year: Week 1 starts Jan 1, Week 52 ends Dec 31 (leftover day(s) fold into 52) ----
+const DAY = 86400000
+const mid = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+export const dayIndex = (d: Date) => Math.round((mid(d).getTime() - new Date(d.getFullYear(), 0, 1).getTime()) / DAY)
+export const weekOfYear = (d: Date) => Math.min(52, Math.floor(dayIndex(d) / 7) + 1)
+export const blockStart = (d: Date) => { const y = d.getFullYear(); const x = new Date(y, 0, 1); x.setDate(1 + Math.floor(dayIndex(d) / 7) * 7); return x }
+export function weekDates(year: number, n: number): string[] {
+  const start = new Date(year, 0, 1); start.setDate(1 + (n - 1) * 7)
+  const end = n >= 52 ? new Date(year, 11, 31) : (() => { const e = new Date(start); e.setDate(start.getDate() + 6); return e })()
+  const out: string[] = []
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) out.push(ymd(d))
+  return out
+}
+export const shortDate = (k: string) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }

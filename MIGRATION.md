@@ -176,3 +176,9 @@ ALTER TABLE series ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE series ADD COLUMN IF NOT EXISTS emoji TEXT;
 ALTER TABLE buckets ADD COLUMN IF NOT EXISTS emoji TEXT;
 ```
+
+## 9. Time of day on planned posts
+
+```sql
+ALTER TABLE items ADD COLUMN IF NOT EXISTS planned_time TEXT;
+```

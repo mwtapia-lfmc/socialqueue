@@ -17,7 +17,7 @@ import Trends from './components/Trends'
 import Help from './components/Help'
 import Structure, { type StructureState, type NewCtx } from './components/Structure'
 import { logoBlob, uploadLogo } from './lib/images'
-import { tagRegistry, SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
+import { tagRegistry, slugTag, type Series, SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
 
 type View = 'home' | 'compose' | 'batch' | 'structure' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
 
@@ -207,7 +207,27 @@ export default function Home() {
     } as Item)
   }
 
-  const placeItem = (it: Item, date: string | null) => setStatus(it, { planned_for: date } as Partial<Item>)
+  const placeItem = async (it: Item, date: string | null, time?: string | null) => {
+    const patch = { planned_for: date, planned_time: date ? (time ?? it.planned_time ?? '09:00') : null } as Partial<Item>
+    const { data, error } = await supabase.from('items').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', it.id).select().single()
+    if (!error) return upsertLocal(data as Item)
+    if (/planned_time/.test(error.message)) {
+      const r = await supabase.from('items').update({ planned_for: date, updated_at: new Date().toISOString() }).eq('id', it.id).select().single()
+      if (!r.error) { upsertLocal({ ...(r.data as Item), planned_time: patch.planned_time }); return alert('Placed, but times can\'t be saved yet. Run this in the Supabase SQL editor:\n\nALTER TABLE items ADD COLUMN IF NOT EXISTS planned_time TEXT;') }
+    }
+    alert('Update failed: ' + error.message)
+  }
+
+  const createSeries = async (name: string): Promise<Series | null> => {
+    if (!structure) return null
+    let key = slugTag(name) || 'series'
+    const taken = new Set(structure.series.map((x) => x.key))
+    for (let n = 2; taken.has(key); n++) key = `${slugTag(name) || 'series'}-${n}`
+    const { data, error } = await supabase.from('series').insert({ user_id: user.id, publication_id: structure.publication.id, key, name, description: null, sort_order: structure.series.length }).select().single()
+    if (error) { alert('Could not create the series: ' + error.message); return null }
+    setStructure({ ...structure, series: [...structure.series, data as Series] })
+    return data as Series
+  }
   const setEmoji = async (kind: 'series' | 'tag', ref: string, emoji: string) => {
     if (!structure) return
     const fail = (m: string) => alert(/emoji/.test(m) ? 'The emoji column is missing. Run this in the Supabase SQL editor, then try again:\n\nALTER TABLE series ADD COLUMN IF NOT EXISTS emoji TEXT;\nALTER TABLE buckets ADD COLUMN IF NOT EXISTS emoji TEXT;' : 'Could not save the emoji: ' + m)
@@ -372,14 +392,14 @@ export default function Home() {
 
                 {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
                 {view === 'compose' && (
-                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
-                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji}
+                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji} onNewSeries={createSeries}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onPlan={planTwoWeeks} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
-                {view === 'calendar' && <Calendar items={items.filter((i) => i.schedule_date)} onSelect={edit}
-                  onMove={(it, date, time) => setStatus(it, { schedule_date: date, schedule_time: time, ...(it.status === 'failed' ? { status: 'scheduled', publish_log: null } : {}) })}
+                {view === 'calendar' && <Calendar items={items.filter((i) => i.schedule_date || i.planned_for)} onSelect={edit}
+                  onMove={(it, date, time) => it.schedule_date ? setStatus(it, { schedule_date: date, schedule_time: time, ...(it.status === 'failed' ? { status: 'scheduled', publish_log: null } : {}) }) : placeItem(it, date, time)}
                   onCreate={(date, time) => { setEditing({ id: '', kind: 'post', title: null, content: '', tone: 'casual', platforms: Object.fromEntries(['threads', 'twitter', 'bluesky', 'linkedin'].map((p) => [p, !!connections.find((c) => c.platform === p)])), hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: date, schedule_time: time, created_at: '', updated_at: '' } as unknown as Item); setView('compose') }} />}
                 {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
                 {view === 'profiles' && <Profiles profiles={profiles} loading={profilesLoading} onRefresh={() => loadProfiles(user.id, true)} onRepurpose={repurpose} onConnect={() => go('accounts')} />}
