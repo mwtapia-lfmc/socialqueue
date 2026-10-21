@@ -323,19 +323,19 @@ export default function Home() {
   const scheduled = items.filter((i) => i.status === 'scheduled')
   const queue = items.filter((i) => i.status !== 'draft')
 
-  const tabs: { key: View; label: string; count?: number }[] = [
+  const tabs: { key: View; label: string; count?: number; group?: string }[] = [
     { key: 'home', label: '🏠 Home' },
-    { key: 'compose', label: '✍️ Compose' },
-    { key: 'batch', label: '⚡ Batch' },
-    { key: 'structure', label: '🗓 Planner' },
-    { key: 'brainstorm', label: '🧠 Brainstorm', count: ideas.length },
-    { key: 'notes', label: '📓 Notes', count: notes.length || undefined },
-    { key: 'drafts', label: '📝 Drafts', count: drafts.length },
-    { key: 'calendar', label: '📅 Calendar' },
-    { key: 'queue', label: '🚀 Queue', count: scheduled.length },
-    { key: 'profiles', label: '👤 Profiles' },
+    { key: 'notes', label: '📓 Notes', count: notes.length || undefined, group: 'Gather' },
     { key: 'trends', label: '📈 Trends' },
-    { key: 'accounts', label: '🔗 Accounts', count: connections.length },
+    { key: 'profiles', label: '👤 Profiles' },
+    { key: 'brainstorm', label: '🧠 Brainstorm', count: ideas.length, group: 'Plan' },
+    { key: 'structure', label: '🗓 Planner' },
+    { key: 'compose', label: '✍️ Compose', group: 'Write' },
+    { key: 'batch', label: '⚡ Batch' },
+    { key: 'drafts', label: '📝 Drafts', count: drafts.length },
+    { key: 'calendar', label: '📅 Calendar', group: 'Publish' },
+    { key: 'queue', label: '🚀 Queue', count: scheduled.length },
+    { key: 'accounts', label: '🔗 Accounts', count: connections.length, group: 'Setup' },
   ]
 
   return (
@@ -368,12 +368,15 @@ export default function Home() {
                 const [icon, ...rest] = t.label.split(' ')
                 const active = view === t.key
                 return (
-                  <button key={t.key} onClick={() => go(t.key)} title={rest.join(' ')}
+                  <div key={t.key} className="space-y-1">
+                  {t.group && (collapsed ? <div className="mx-2 my-2 border-t border-gray-200" /> : <p className="px-3 pt-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{t.group}</p>)}
+                  <button onClick={() => go(t.key)} title={rest.join(' ')}
                     className={`sq-tab w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ${collapsed ? 'justify-center' : ''} ${active ? 'sq-tab-active' : 'text-gray-700 hover:bg-white/80'}`}>
                     <span className="text-lg leading-none w-6 text-center">{icon}</span>
                     {!collapsed && <span className="flex-1 text-left truncate">{rest.join(' ')}</span>}
                     {t.count ? <span className={`text-[11px] min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center ${active ? 'bg-white/25' : 'bg-gray-100 text-gray-700'} ${collapsed ? 'absolute translate-x-4 -translate-y-3' : ''}`}>{t.count}</span> : null}
                   </button>
+                  </div>
                 )
               })}
             </nav>
