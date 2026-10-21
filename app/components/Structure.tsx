@@ -324,8 +324,6 @@ export default function Structure(p: Props) {
           <div className="pt-1">
             <p className="text-[11px] font-bold leading-tight">{f === 'note' ? 'Posts / Notes' : 'Longform'}</p>
             <p className="text-[10px] text-gray-400 leading-tight">{f === 'longform' ? 'article or video' : 'short-form'}</p>
-            <p className={`text-[11px] font-semibold ${placed >= target ? 'text-emerald-600' : 'text-gray-600'}`}><GoalEdit placed={placed} target={target} onSave={(n) => p.onCadence(f === 'note' ? { notes_per_week: n } : { longform_per_week: n })} /></p>
-            {placed < target && <button onClick={() => p.onNew(f, { plannedFor: freeDay(days, f), seriesId: openSeriesId })} className="mt-0.5 text-[10px] text-orange-700 hover:underline">+ add</button>}
           </div>
           {days.map((d) => <DayCell key={d} day={d} f={f} />)}
         </div>
