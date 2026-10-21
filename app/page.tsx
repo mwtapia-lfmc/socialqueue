@@ -426,10 +426,15 @@ export default function Home() {
             ) : (
               <>
                 {view !== 'compose' && (
-                  <button onClick={() => { setEditing(null); go('compose') }} aria-label="New post" title="New post"
-                    className="sq-btn-primary fixed top-4 right-4 z-30 h-14 w-14 md:w-auto md:px-6 rounded-full text-4xl md:text-lg font-bold leading-none flex items-center justify-center gap-2 shadow-xl">
-                    <span className="-mt-1 md:mt-0 md:text-2xl">＋</span><span className="hidden md:inline text-base font-semibold">New</span>
-                  </button>
+                  <>
+                    <div className="hidden md:flex justify-end mb-4">
+                      <button onClick={() => { setEditing(null); go('compose') }} className="sq-btn-primary h-11 px-5 rounded-full text-base font-semibold inline-flex items-center gap-2 shadow-md">
+                        <span className="text-xl leading-none">＋</span> New post
+                      </button>
+                    </div>
+                    <button onClick={() => { setEditing(null); go('compose') }} aria-label="New post" title="New post"
+                      className="md:hidden sq-btn-primary fixed right-4 z-30 h-14 w-14 rounded-full text-3xl leading-none flex items-center justify-center shadow-xl" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 76px)' }}>＋</button>
+                  </>
                 )}
                 {/* Mobile bottom nav */}
                 <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
