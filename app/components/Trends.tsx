@@ -17,6 +17,16 @@ export default function Trends({ regions, onRegion, sources, note, loading, onRe
   const [over, setOver] = useState<string | null>(null)
   const [angles, setAngles] = useState<Record<string, string[] | 'loading'>>({})
   const [openNews, setOpenNews] = useState<string | null>(null)
+  type Headline = { title: string; url: string; source: string; at: string; region: string }
+  const [news, setNews] = useState<Headline[] | null>(null)
+  const [showAllNews, setShowAllNews] = useState(false)
+  const regionKey = regions.join(',')
+  useEffect(() => {
+    let live = true
+    const pull = () => fetch(`/api/breaking?regions=${regionKey || 'us'}`).then((r) => r.json()).then((d) => { if (live) setNews(d.items || []) }).catch(() => {})
+    pull(); const t = setInterval(pull, 3 * 60_000)
+    return () => { live = false; clearInterval(t) }
+  }, [regionKey])
   type Ask = { items: { topic: string; platform: string; why: string; url?: string }[]; at: string }
   const [ask, setAsk] = useState<Ask | null>(null)
   const [askBusy, setAskBusy] = useState(false)
@@ -54,6 +64,29 @@ export default function Trends({ regions, onRegion, sources, note, loading, onRe
 
   return (
     <div className="space-y-5 sq-fade-in">
+      <section className="sq-card overflow-hidden border-red-200">
+        <div className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white">
+          <span className="h-2 w-2 rounded-full bg-white sq-pulse" />
+          <h3 className="text-sm font-bold tracking-wide">BREAKING NEWS</h3>
+          <span className="text-[11px] text-white/80">LA Times, LAist, NPR, Google News, BBC, Al Jazeera · updates every few minutes</span>
+        </div>
+        {!news ? <p className="px-4 py-4 text-sm text-gray-400 sq-pulse">Checking the wires…</p> : news.length === 0 ? <p className="px-4 py-4 text-sm text-gray-400">Nothing in the last day for the places you have on.</p> : (
+          <>
+            <ul className="divide-y divide-gray-100">
+              {news.slice(0, showAllNews ? 25 : 6).map((h, i) => (
+                <li key={i} className="flex items-baseline gap-3 px-4 py-2">
+                  <span className="text-[11px] font-semibold text-red-600 w-16 shrink-0">{timeAgo(h.at)}</span>
+                  <a href={h.url} target="_blank" rel="noopener" className="flex-1 min-w-0 text-sm font-medium hover:text-indigo-700">{h.title}</a>
+                  <span className="hidden sm:inline text-[11px] text-gray-400 shrink-0">{h.source}</span>
+                  <button onClick={() => onWrite(h.title)} title="Write about this" className="text-sm shrink-0">✍</button>
+                </li>
+              ))}
+            </ul>
+            {news.length > 6 && <button onClick={() => setShowAllNews((v) => !v)} className="w-full py-2 text-xs text-indigo-600 hover:bg-gray-50 border-t border-gray-100">{showAllNews ? 'Show fewer' : `Show more (${Math.min(news.length, 25) - 6})`}</button>}
+          </>
+        )}
+      </section>
+
       <section className="sq-card p-4 space-y-2 border-amber-200 bg-amber-50/40">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-amber-900">🤖 Ask Claude what's trending</span>
