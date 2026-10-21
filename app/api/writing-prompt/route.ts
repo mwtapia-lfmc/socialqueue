@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: Request) {
-  const { format = 'note', trend, series, bucket, tags = [], angle, previous = [], voiceSamples = [] } = await request.json()
+  const { format = 'note', trend, series, bucket, tags = [], angle, previous = [], voiceSamples = [], notes = [] } = await request.json()
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return Response.json({ error: 'AI not configured' }, { status: 500 })
   try {
@@ -20,6 +20,7 @@ Give ONE writing prompt: a specific question, scene or angle they could start wr
 
 ${lines || 'No constraints: surprise them with something fresh about media literacy.'}
 ${voiceSamples.length ? `\nTheir past posts, for voice:\n${voiceSamples.map((v: string) => `- ${v}`).join('\n')}` : ''}
+${notes.length ? `\nTheir own saved notes. Draw on this real material and the way they think; point the prompt at something specific in here when it fits, and never just quote it back:\n${notes.map((n: any) => `- ${n.title}: ${n.text}`).join('\n')}` : ''}
 ${previous.length ? `\nDon't repeat these earlier prompts:\n${previous.map((p: string) => `- ${p}`).join('\n')}` : ''}
 
 Return ONLY the prompt text, no quotes or preamble.`

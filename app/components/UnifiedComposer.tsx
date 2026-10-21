@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { authedFetch } from '../lib/api'
 import type { TrendSource } from '../api/trends/route'
+import { pickNotes, type Note } from '../lib/notes'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
@@ -53,6 +54,7 @@ interface Props {
   structure?: StructureData | null
   tagOptions?: TagInfo[]
   trends?: TrendSource[] | null
+  myNotes?: Note[]
   onNewSeries?: (name: string) => Promise<{ id: string } | null>
   item: Item | null
   onSaved: (item: Item) => void
@@ -81,7 +83,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, onNewSeries, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], onNewSeries, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -122,6 +124,18 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const type = typeOf(draft)
   const isLong = type === 'longform'
   const [newTag, setNewTag] = useState('')
+  type Grade = { grade: string; score: number; summary: string; strengths: string[]; notes: { area: string; note: string }[] }
+  const [grade, setGrade] = useState<Grade | null>(null)
+  const [grading, setGrading] = useState(false)
+  const gradeIt = async () => {
+    setGrading(true)
+    try {
+      const r = await fetch('/api/grade-essay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: draft.title, text: draft.content, kind: isLong ? 'longform' : 'post' }) })
+      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      setGrade(d)
+    } catch (e) { alert('Grading failed: ' + (e as Error).message) }
+    setGrading(false)
+  }
   const [showPrompt, setShowPrompt] = useState(false)
   const [promptText, setPromptText] = useState('')
   const [promptBusy, setPromptBusy] = useState(false)
@@ -129,6 +143,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const [promptTag, setPromptTag] = useState('')
   const [promptSeries, setPromptSeries] = useState('')
   const [promptAngle, setPromptAngle] = useState('')
+  const [useNotes, setUseNotes] = useState(true)
   const [promptSeen, setPromptSeen] = useState<string[]>([])
   const trendList = (trends || []).flatMap((s) => s.trends.slice(0, 8).map((t) => ({ key: `${s.key}:${t.topic}`, label: `${s.icon} ${t.topic}`, topic: t.topic, summary: t.summary })))
   const getPrompt = async () => {
@@ -146,6 +161,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
         trend: tr ? { topic: tr.topic, summary: tr.summary } : null,
         angle: promptAngle.trim() || null,
         previous: promptSeen.slice(-5),
+        notes: useNotes ? pickNotes(myNotes, [ser?.name, ser?.description, tg?.name, tr?.topic, promptAngle, ...(draft.tags || []), draft.title, draft.content.slice(0, 300)].filter(Boolean).join(' '), 6) : [],
       }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
@@ -455,6 +471,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                       {tagOptions.map((t) => <option key={t.key} value={t.key}>{t.emoji} {t.name}</option>)}
                     </select>
                   )}
+                  {myNotes.length > 0 && <label className="flex items-center gap-1.5 text-amber-900"><input type="checkbox" checked={useNotes} onChange={(e) => setUseNotes(e.target.checked)} /> Use my notes ({myNotes.length})</label>}
                   <input value={promptAngle} onChange={(e) => setPromptAngle(e.target.value)} placeholder="Angle (optional)" className="h-8 flex-1 min-w-[8rem] px-2 bg-white border border-amber-200 rounded-lg" />
                 </div>
                 {promptText && <p className="text-[15px] leading-relaxed text-amber-950 bg-white/80 rounded-lg px-3 py-2 border border-amber-100">{promptText}</p>}
@@ -494,8 +511,21 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                 </>}
               </div>
             )}
+            {grade && (
+              <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/60 p-4 space-y-2 sq-fade-in">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl font-bold text-violet-800">{grade.grade}</span>
+                  <span className="text-sm text-violet-900/80 flex-1">{grade.summary}</span>
+                  <button type="button" onClick={() => setGrade(null)} className="text-xs text-violet-700 hover:underline self-start">Close</button>
+                </div>
+                {grade.strengths?.length > 0 && <ul className="text-sm text-emerald-800 space-y-0.5">{grade.strengths.map((x, i) => <li key={i}>✓ {x}</li>)}</ul>}
+                <ul className="space-y-1.5">{grade.notes.map((n, i) => <li key={i} className="text-sm bg-white rounded-lg px-3 py-2 border border-violet-100"><span className="text-[10px] font-semibold uppercase text-violet-700 mr-1.5">{n.area}</span>{n.note}</li>)}</ul>
+                <p className="text-[11px] text-violet-700/70">Notes only. Nothing was changed in your draft.</p>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
               <span className="text-gray-400">{countChars(draft.content)} chars</span>
+              <button type="button" onClick={gradeIt} disabled={grading || !draft.content.trim()} className="px-2.5 py-1 rounded-md bg-violet-100 text-violet-800 hover:bg-violet-200 font-medium disabled:opacity-50">{grading ? <span className="sq-pulse">Grading…</span> : '🎓 Grade my draft'}</button>
               {type === 'post' && selectedPlatforms.map((p) => {
                 const limit = PLATFORM_LIMITS[p]
                 const n = countChars(effectiveText(p))

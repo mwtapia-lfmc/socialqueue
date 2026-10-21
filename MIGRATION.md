@@ -188,3 +188,18 @@ ALTER TABLE items ADD COLUMN IF NOT EXISTS planned_time TEXT;
 ```sql
 ALTER TABLE publications ADD COLUMN IF NOT EXISTS notes_per_week INT, ADD COLUMN IF NOT EXISTS longform_per_week INT;
 ```
+
+## 11. Notes library (Evernote, Apple Notes, pasted text)
+
+```sql
+CREATE TABLE IF NOT EXISTS notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'paste',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "own notes" ON notes FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+```

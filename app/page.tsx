@@ -6,6 +6,8 @@ import { authedFetch } from './lib/api'
 import UnifiedComposer, { type Item } from './components/UnifiedComposer'
 import Drafts from './components/Drafts'
 import Brainstorm from './components/Brainstorm'
+import NotesLibrary from './components/NotesLibrary'
+import type { Note } from './lib/notes'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
@@ -20,7 +22,7 @@ import Structure, { type StructureState, type NewCtx } from './components/Struct
 import { logoBlob, uploadLogo } from './lib/images'
 import { isPlaceholder, tagRegistry, slugTag, type Series, SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
 
-type View = 'home' | 'compose' | 'batch' | 'structure' | 'brainstorm' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
+type View = 'home' | 'compose' | 'batch' | 'structure' | 'brainstorm' | 'notes' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -55,6 +57,14 @@ export default function Home() {
     const { data, error } = await supabase.from('items').select('*').eq('user_id', userId).order('updated_at', { ascending: false })
     if (error) { console.error('Load failed:', error); return }
     setItems((data || []) as Item[]); cacheSet(`sq:${userId}:items`, data || [])
+  }, [])
+
+  const [notes, setNotes] = useState<Note[]>([])
+  const [notesMissing, setNotesMissing] = useState(false)
+  const loadNotes = useCallback(async (userId: string) => {
+    const { data, error } = await supabase.from('notes').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(2000)
+    if (error) { setNotesMissing(/notes|relation|schema cache/i.test(error.message)); return }
+    setNotesMissing(false); setNotes((data || []) as Note[])
   }, [])
 
   const loadConnections = useCallback(async (userId?: string) => {
@@ -98,7 +108,7 @@ export default function Home() {
     if (connectErr) { setView('accounts'); setTimeout(() => alert('Could not connect: ' + decodeURIComponent(connectErr.replace(/\+/g, ' '))), 50) }
     if (params.get('connected')) setView('accounts')
     if (desc || connectErr || params.get('connected')) window.history.replaceState({}, '', window.location.pathname)
-    const boot = (u: any) => { hydrate(u.id); loadItems(u.id); loadConnections(u.id); loadProfiles(u.id); loadTrends(u.id); loadStructure(u.id) }
+    const boot = (u: any) => { hydrate(u.id); loadItems(u.id); loadConnections(u.id); loadProfiles(u.id); loadTrends(u.id); loadStructure(u.id); loadNotes(u.id) }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) boot(session.user)
@@ -112,7 +122,7 @@ export default function Home() {
       if (!session?.user) { setItems([]); setConnections([]); setProfiles(null) }
     })
     return () => sub.subscription.unsubscribe()
-  }, [hydrate, loadItems, loadConnections, loadProfiles, loadTrends, loadStructure])
+  }, [hydrate, loadItems, loadConnections, loadProfiles, loadTrends, loadStructure, loadNotes])
 
   // keep the planner/queue current: items the scheduler publishes appear without a reload
   useEffect(() => {
@@ -152,6 +162,19 @@ export default function Home() {
     upsertLocal(data as Item)
   }
   const startIdea = async (it: Item) => { await setStatus(it, { stage: 'drafting' } as Partial<Item>); edit({ ...it, stage: 'drafting' }) }
+  const importNotes = async (rows: { title: string; body: string; source: string }[]) => {
+    if (!user) return
+    for (let i = 0; i < rows.length; i += 50) {
+      const { error } = await supabase.from('notes').insert(rows.slice(i, i + 50).map((r) => ({ ...r, user_id: user.id })))
+      if (error) return alert('Could not save notes: ' + error.message)
+    }
+    await loadNotes(user.id)
+  }
+  const deleteNote = async (n: Note) => {
+    const { error } = await supabase.from('notes').delete().eq('id', n.id)
+    if (error) return alert('Delete failed: ' + error.message)
+    setNotes((prev) => prev.filter((x) => x.id !== n.id))
+  }
   const publishNow = async (item: Item) => {
     const r = await authedFetch('/api/publish', { method: 'POST', body: JSON.stringify({ id: item.id }) })
     const data = await r.json()
@@ -304,8 +327,9 @@ export default function Home() {
     { key: 'home', label: '🏠 Home' },
     { key: 'compose', label: '✍️ Compose' },
     { key: 'batch', label: '⚡ Batch' },
-    { key: 'structure', label: '🗂 Structure' },
+    { key: 'structure', label: '🗓 Planner' },
     { key: 'brainstorm', label: '🧠 Brainstorm', count: ideas.length },
+    { key: 'notes', label: '📓 Notes', count: notes.length || undefined },
     { key: 'drafts', label: '📝 Drafts', count: drafts.length },
     { key: 'calendar', label: '📅 Calendar' },
     { key: 'queue', label: '🚀 Queue', count: scheduled.length },
@@ -423,12 +447,13 @@ export default function Home() {
 
                 {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
                 {view === 'compose' && (
-                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
                 )}
                 {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji} onNewSeries={createSeries}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} onCadence={setCadence} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
-                {view === 'brainstorm' && <Brainstorm items={ideas} structure={structure} onAdd={addIdea} onRename={(it, title) => setStatus(it, { title })} onStart={startIdea} onDelete={remove} />}
+                {view === 'brainstorm' && <Brainstorm items={ideas} structure={structure} notes={notes} drafts={drafts} trends={trends?.sources ?? null} onAdd={addIdea} onRename={(it, title) => setStatus(it, { title })} onStart={startIdea} onDelete={remove} />}
+                {view === 'notes' && <NotesLibrary notes={notes} missing={notesMissing} onImport={importNotes} onDelete={deleteNote} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
                 {view === 'calendar' && <Calendar items={items.filter((i) => (i.schedule_date || i.planned_for) && !isPlaceholder(i))} onSelect={edit}
                   onMove={(it, date, time) => it.schedule_date ? setStatus(it, { schedule_date: date, schedule_time: time, ...(it.status === 'failed' ? { status: 'scheduled', publish_log: null } : {}) }) : placeItem(it, date, time)}
