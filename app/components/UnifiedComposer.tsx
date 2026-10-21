@@ -125,6 +125,19 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const isLong = type === 'longform'
   const [newTag, setNewTag] = useState('')
   type Grade = { grade: string; score: number; summary: string; strengths: string[]; notes: { area: string; note: string }[] }
+  const [titles, setTitles] = useState<{ title: string; style: string }[] | null>(null)
+  const [titling, setTitling] = useState(false)
+  const [titleSeen, setTitleSeen] = useState<string[]>([])
+  const suggestTitles = async () => {
+    setTitling(true)
+    try {
+      const ser = structure?.series.find((x) => x.id === draft.series_id)
+      const r = await fetch('/api/suggest-titles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: draft.title, hook: draft.hook, content: draft.content, series: ser?.name, tags: draft.tags || [], previous: titleSeen.slice(-12) }) })
+      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      setTitles(d.titles); setTitleSeen((x) => [...x, ...d.titles.map((t: any) => t.title)])
+    } catch (e) { alert('Title ideas failed: ' + (e as Error).message) }
+    setTitling(false)
+  }
   const [grade, setGrade] = useState<Grade | null>(null)
   const [grading, setGrading] = useState(false)
   const gradeIt = async () => {
@@ -397,12 +410,32 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
           </div>
 
           {draft.kind === 'blog' && (
-            <input
-              value={draft.title || ''}
-              onChange={(e) => update({ title: e.target.value })}
-              placeholder="Blog title"
-              className="w-full text-2xl font-bold bg-transparent border-0 border-b-2 border-gray-200 focus:border-indigo-500 focus:outline-none pb-2 placeholder:text-gray-300"
-            />
+            <div>
+              <div className="flex items-end gap-3">
+                <input
+                  value={draft.title || ''}
+                  onChange={(e) => update({ title: e.target.value })}
+                  placeholder="Blog title"
+                  className="flex-1 min-w-0 text-2xl font-bold bg-transparent border-0 border-b-2 border-gray-200 focus:border-indigo-500 focus:outline-none pb-2 placeholder:text-gray-300"
+                />
+                <button type="button" onClick={suggestTitles} disabled={titling} className="shrink-0 mb-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-amber-50 text-amber-800 hover:bg-amber-100">{titling ? <span className="sq-pulse">Thinking…</span> : '✨ Title ideas'}</button>
+              </div>
+              {titles && (
+                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/60 p-2.5 space-y-1.5 sq-fade-in">
+                  {titles.map((t, i) => (
+                    <button key={i} type="button" onClick={() => { update({ title: t.title }); setTitles(null) }} className="w-full text-left flex items-baseline gap-2 px-3 py-1.5 rounded-lg bg-white border border-amber-100 hover:border-amber-400">
+                      <span className="flex-1 text-[15px] font-medium">{t.title}</span>
+                      <span className="text-[10px] uppercase text-amber-700 shrink-0">{t.style}</span>
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-3 text-xs pt-0.5">
+                    <button type="button" onClick={suggestTitles} disabled={titling} className="text-amber-800 hover:underline">{titling ? 'Thinking…' : '🔄 More'}</button>
+                    <button type="button" onClick={() => setTitles(null)} className="text-gray-500 hover:underline">Close</button>
+                    <span className="text-gray-400">Click one to use it.</span>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           <div>
