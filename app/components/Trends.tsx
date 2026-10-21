@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { timeAgo } from '../lib/text'
+import { authedFetch } from '../lib/api'
 import type { TrendSource, Trend, Region } from '../api/trends/route'
 import type { Profile } from '../api/profiles/route'
 
@@ -16,6 +17,20 @@ export default function Trends({ regions, onRegion, sources, note, loading, onRe
   const [over, setOver] = useState<string | null>(null)
   const [angles, setAngles] = useState<Record<string, string[] | 'loading'>>({})
   const [openNews, setOpenNews] = useState<string | null>(null)
+  type Ask = { items: { topic: string; platform: string; why: string; url?: string }[]; at: string }
+  const [ask, setAsk] = useState<Ask | null>(null)
+  const [askBusy, setAskBusy] = useState(false)
+  const [askFocus, setAskFocus] = useState('')
+  const askClaude = async (refresh = false) => {
+    setAskBusy(true)
+    try {
+      const places = regions.map((r) => (r === 'la' ? 'Los Angeles' : r === 'us' ? 'USA' : 'the world'))
+      const r = await authedFetch('/api/trends-ask', { method: 'POST', body: JSON.stringify({ focus: askFocus, places: places.length ? places : ['USA'], refresh }) })
+      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      setAsk(d)
+    } catch (e) { alert('Ask Claude failed: ' + (e as Error).message) }
+    setAskBusy(false)
+  }
 
   useEffect(() => { try { const o = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]'); if (Array.isArray(o)) setOrder(o) } catch {} }, [])
   const ordered = sources ? [...sources].sort((a, b) => { const ia = order.indexOf(a.key), ib = order.indexOf(b.key); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) }) : []
@@ -39,6 +54,30 @@ export default function Trends({ regions, onRegion, sources, note, loading, onRe
 
   return (
     <div className="space-y-5 sq-fade-in">
+      <section className="sq-card p-4 space-y-2 border-amber-200 bg-amber-50/40">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-amber-900">🤖 Ask Claude what's trending</span>
+          <input value={askFocus} onChange={(e) => setAskFocus(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && askClaude()} placeholder="Focus (optional): media, music, creators…" className="flex-1 min-w-[10rem] h-9 px-3 text-sm border border-amber-200 rounded-lg bg-white" />
+          <button onClick={() => askClaude(!!ask)} disabled={askBusy} className="sq-btn-primary h-9 px-3 rounded-lg text-sm font-semibold">{askBusy ? <span className="sq-pulse">Searching the web…</span> : ask ? '↻ Refresh' : 'Ask'}</button>
+        </div>
+        <p className="text-xs text-gray-500">Claude searches the live web for what's trending on Facebook, Instagram, LinkedIn, TikTok, Threads and more, for the places toggled below. Those apps publish no feed of their own, so this is what news and creators are saying about them. Takes about 20 seconds.</p>
+        {ask && (
+          <ul className="space-y-1.5 pt-1">
+            {ask.items.map((it, i) => (
+              <li key={i} className="flex items-start gap-2 bg-white rounded-lg px-3 py-2 border border-amber-100">
+                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 shrink-0 mt-0.5">{it.platform}</span>
+                <div className="flex-1 min-w-0 text-sm">
+                  <strong>{it.url ? <a href={it.url} target="_blank" rel="noopener" className="hover:text-indigo-700">{it.topic}</a> : it.topic}</strong>
+                  <span className="text-gray-600"> · {it.why}</span>
+                </div>
+                <button onClick={() => onWrite(it.topic)} title="Write about this" className="text-sm shrink-0">✍</button>
+              </li>
+            ))}
+            <li className="text-[11px] text-gray-400">Checked {timeAgo(ask.at)}. Results are saved for an hour.</li>
+          </ul>
+        )}
+      </section>
+
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium text-gray-600 mr-1">Show trends for</span>
         {([['la', '🌴 LA'], ['us', '🇺🇸 USA'], ['world', '🌍 World']] as [Region, string][]).map(([k, label]) => (
