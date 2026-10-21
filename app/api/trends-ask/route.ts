@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { userClient } from '../../lib/supabaseServer'
+import { requireUser, signInFirst } from '../../lib/requireUser'
 
 export const maxDuration = 60
 
@@ -7,8 +7,7 @@ const cache = new Map<string, { at: number; data: any }>()
 const TTL = 60 * 60_000
 
 export async function POST(request: Request) {
-  const { data: { user } } = await userClient(request).auth.getUser()
-  if (!user) return Response.json({ error: 'Sign in first' }, { status: 401 })
+  if (!(await requireUser(request))) return signInFirst()
   const { focus = '', places = ['USA'], refresh = false } = await request.json()
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return Response.json({ error: 'AI not configured' }, { status: 500 })
