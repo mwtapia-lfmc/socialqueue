@@ -1,7 +1,7 @@
 import type { Item } from '../components/UnifiedComposer'
 
-export interface Publication { id: string; name: string; platform: string; year_theme: string | null }
-export interface Series { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number; is_active: boolean }
+export interface Publication { id: string; name: string; platform: string; year_theme: string | null; logo_url?: string | null }
+export interface Series { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number; is_active: boolean; logo_url?: string | null }
 export interface Bucket { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number }
 export interface StructureData { publication: Publication; series: Series[]; buckets: Bucket[] }
 

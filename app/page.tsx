@@ -16,6 +16,7 @@ import BatchComposer from './components/BatchComposer'
 import Trends from './components/Trends'
 import Help from './components/Help'
 import Structure, { type StructureState, type NewCtx } from './components/Structure'
+import { logoBlob, uploadLogo } from './lib/images'
 import { SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
 
 type View = 'home' | 'compose' | 'batch' | 'structure' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
@@ -185,6 +186,16 @@ export default function Home() {
     setStructure({ ...structure, publication: { ...structure.publication, ...patch } })
   }
 
+  const setLogo = async (table: 'publications' | 'series', id: string, file: File | null) => {
+    let url: string | null = null
+    if (file) {
+      try { url = await uploadLogo(await logoBlob(file), user.id) } catch (e) { return alert('Could not save the logo: ' + ((e as Error).message || e)) }
+    }
+    const { error } = await supabase.from(table).update({ logo_url: url }).eq('id', id)
+    if (error) return alert(/logo_url/.test(error.message) ? 'The logo column is missing. Run this in the Supabase SQL editor, then try again:\n\nALTER TABLE publications ADD COLUMN IF NOT EXISTS logo_url TEXT;\nALTER TABLE series ADD COLUMN IF NOT EXISTS logo_url TEXT;' : 'Could not save the logo: ' + error.message)
+    setStructure((st) => st && (table === 'publications' ? { ...st, publication: { ...st.publication, logo_url: url } } : { ...st, series: st.series.map((x) => (x.id === id ? { ...x, logo_url: url } : x)) }))
+  }
+
   const repurposeStructure = (src: Item) => {
     const toFormat: Format = src.format === 'longform' ? 'note' : 'longform'
     const firstPara = (src.content || '').split(/\n\s*\n/)[0] || ''
@@ -342,7 +353,7 @@ export default function Home() {
                 {view === 'compose' && (
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
-                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication}
+                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onPlan={planTwoWeeks} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}

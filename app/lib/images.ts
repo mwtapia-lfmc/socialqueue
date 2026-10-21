@@ -63,3 +63,20 @@ export async function uploadToStorage(blob: Blob, userId: string): Promise<strin
   if (error) throw new Error(error.message)
   return supabase.storage.from('media').getPublicUrl(path).data.publicUrl
 }
+
+// Logos: square center-crop, max 512px, PNG so transparency survives
+export async function logoBlob(file: File): Promise<Blob> {
+  const img = await loadImage(await fileToDataUrl(file))
+  const side = Math.min(img.width, img.height)
+  const out = Math.min(512, side)
+  const c = document.createElement('canvas'); c.width = c.height = out
+  c.getContext('2d')!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, out, out)
+  return new Promise((resolve) => c.toBlob((b) => resolve(b!), 'image/png'))
+}
+
+export async function uploadLogo(blob: Blob, userId: string): Promise<string> {
+  const path = `${userId}/logos/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
+  const { error } = await supabase.storage.from('media').upload(path, blob, { contentType: 'image/png' })
+  if (error) throw new Error(error.message)
+  return supabase.storage.from('media').getPublicUrl(path).data.publicUrl
+}

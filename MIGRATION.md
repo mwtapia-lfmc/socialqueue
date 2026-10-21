@@ -162,3 +162,10 @@ ALTER TABLE items
   ADD COLUMN IF NOT EXISTS source_item_id UUID REFERENCES items(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
 ```
+
+## 7. Logos for the publication and series
+
+```sql
+ALTER TABLE publications ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE series ADD COLUMN IF NOT EXISTS logo_url TEXT;
+```

@@ -16,6 +16,7 @@ interface Props {
   onRecheck: () => void
   onRename: (table: 'series' | 'buckets', id: string, patch: { name?: string; description?: string }) => Promise<void>
   onRenamePublication: (patch: { name?: string; year_theme?: string }) => Promise<void>
+  onLogo: (table: 'publications' | 'series', id: string, file: File | null) => Promise<void>
   onNew: (format: Format, ctx: NewCtx) => void
   onOpen: (item: Item) => void
   onRepurpose: (item: Item) => void
@@ -32,6 +33,20 @@ function Inline({ value, onSave, className = '', placeholder }: { value: string;
   if (!editing) return <button type="button" onClick={() => { setV(value); setEditing(true) }} title="Click to rename" className={`text-left hover:bg-orange-50 rounded px-1 -mx-1 ${className}`}>{value || <span className="text-gray-300">{placeholder}</span>}</button>
   const commit = () => { setEditing(false); if (v.trim() && v !== value) onSave(v.trim()) }
   return <input autoFocus value={v} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }} className={`border border-orange-300 rounded px-1 -mx-1 w-full focus:outline-none focus:ring-2 focus:ring-orange-200 ${className}`} />
+}
+
+function LogoPicker({ url, size, label, onPick, onClear }: { url?: string | null; size: number; label: string; onPick: (f: File) => void; onClear: () => void }) {
+  return (
+    <div className="relative group shrink-0" style={{ width: size, height: size }}>
+      <label title={url ? `Change ${label} logo` : `Add a ${label} logo`} className="block w-full h-full cursor-pointer">
+        {url
+          ? <img src={url} alt="" className="w-full h-full rounded-xl object-cover border border-orange-200 bg-white" />
+          : <span className="flex w-full h-full items-center justify-center rounded-xl border-2 border-dashed border-orange-300 text-orange-400 hover:bg-orange-50 text-[10px] font-medium text-center leading-tight">+ logo</span>}
+        <input type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = '' }} />
+      </label>
+      {url && <button type="button" onClick={onClear} title="Remove logo" className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs opacity-0 group-hover:opacity-100 hover:text-red-600 transition">×</button>}
+    </div>
+  )
 }
 
 export default function Structure(p: Props) {
@@ -171,11 +186,13 @@ export default function Structure(p: Props) {
   return (
     <div className="grid lg:grid-cols-[260px_1fr] gap-6 sq-fade-in">
       <nav className="sq-card p-3 self-start lg:sticky lg:top-6 space-y-1">
-        <div className="px-3 pt-1 pb-2"><p className="text-[11px] font-semibold uppercase tracking-wide text-[#ff6719]">Substack</p><Inline value={publication.name} onSave={(name) => p.onRenamePublication({ name })} className="font-bold leading-tight block w-full" /><Inline value={publication.year_theme || ''} placeholder="Add a theme" onSave={(year_theme) => p.onRenamePublication({ year_theme })} className="text-[11px] text-gray-500 block w-full" /></div>
+        <div className="px-3 pt-1 pb-2 flex items-start gap-3">
+          <LogoPicker url={publication.logo_url} size={44} label="publication" onPick={(f) => p.onLogo('publications', publication.id, f)} onClear={() => p.onLogo('publications', publication.id, null)} />
+          <div className="min-w-0 flex-1"><p className="text-[11px] font-semibold uppercase tracking-wide text-[#ff6719]">Substack</p><Inline value={publication.name} onSave={(name) => p.onRenamePublication({ name })} className="font-bold leading-tight block w-full" /><Inline value={publication.year_theme || ''} placeholder="Add a theme" onSave={(year_theme) => p.onRenamePublication({ year_theme })} className="text-[11px] text-gray-500 block w-full" /></div></div>
         {navBtn({ kind: 'week' }, 'This week', `${weekNotes.length}/${CADENCE.note} Notes · ${weekLong.length}/${CADENCE.longform} Longform`)}
         {navBtn({ kind: 'all' }, 'All posts', countText(mine))}
         <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Series</p>
-        {series.map((s) => navBtn({ kind: 'series', id: s.id }, s.name, countText(mine.filter((i) => i.series_id === s.id))))}
+        {series.map((s) => navBtn({ kind: 'series', id: s.id }, <span className="flex items-center gap-2">{s.logo_url && <img src={s.logo_url} alt="" className="h-5 w-5 rounded object-cover border border-orange-100" />}{s.name}</span>, countText(mine.filter((i) => i.series_id === s.id))))}
         <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Buckets</p>
         {buckets.map((b) => navBtn({ kind: 'bucket', id: b.id }, b.name, countText(mine.filter((i) => i.bucket_id === b.id))))}
       </nav>
@@ -205,6 +222,7 @@ export default function Structure(p: Props) {
         ) : (
           <>
             <div className="flex flex-wrap items-start gap-3">
+              {selSeries && <LogoPicker url={selSeries.logo_url} size={64} label="series" onPick={(f) => p.onLogo('series', selSeries.id, f)} onClear={() => p.onLogo('series', selSeries.id, null)} />}
               <div className="mr-auto min-w-0 flex-1">
                 {selected ? (
                   <>
