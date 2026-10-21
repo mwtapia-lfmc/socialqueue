@@ -26,9 +26,19 @@ export default function Drafts({ items, onEdit, onSchedule, onDelete }: Props) {
     )
   }
 
+  const sections = [
+    { key: 'notes', title: '📝 Notes / Posts', rows: items.filter((it) => it.kind !== 'blog') },
+    { key: 'long', title: '📄 Longform / Articles', rows: items.filter((it) => it.kind === 'blog') },
+  ]
+
   return (
-    <div className="grid md:grid-cols-2 gap-4 sq-fade-in">
-      {items.map((it) => (
+    <div className="space-y-8 sq-fade-in">
+      {sections.map((sec) => (
+        <section key={sec.key}>
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">{sec.title} <span className="font-normal text-gray-400">· {sec.rows.length}</span></h3>
+          {sec.rows.length === 0 ? <p className="text-sm text-gray-400">Nothing here yet.</p> : (
+    <div className="grid md:grid-cols-2 gap-4">
+      {sec.rows.map((it) => (
         <div key={it.id} className="sq-card p-5 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -63,6 +73,10 @@ export default function Drafts({ items, onEdit, onSchedule, onDelete }: Props) {
             <button onClick={() => confirm('Delete this draft?') && onDelete(it)} className="text-sm px-2 py-1.5 rounded-lg text-red-600 hover:bg-red-50">Delete</button>
           </div>
         </div>
+      ))}
+    </div>
+          )}
+        </section>
       ))}
     </div>
   )

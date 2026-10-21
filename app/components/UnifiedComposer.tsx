@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { authedFetch } from '../lib/api'
+import type { TrendSource } from '../api/trends/route'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
@@ -51,6 +52,7 @@ interface Props {
   connections?: Connection[]
   structure?: StructureData | null
   tagOptions?: TagInfo[]
+  trends?: TrendSource[] | null
   onNewSeries?: (name: string) => Promise<{ id: string } | null>
   item: Item | null
   onSaved: (item: Item) => void
@@ -79,7 +81,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], onNewSeries, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, onNewSeries, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -120,6 +122,37 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const type = typeOf(draft)
   const isLong = type === 'longform'
   const [newTag, setNewTag] = useState('')
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [promptText, setPromptText] = useState('')
+  const [promptBusy, setPromptBusy] = useState(false)
+  const [promptTrend, setPromptTrend] = useState('')
+  const [promptTag, setPromptTag] = useState('')
+  const [promptSeries, setPromptSeries] = useState('')
+  const [promptAngle, setPromptAngle] = useState('')
+  const [promptSeen, setPromptSeen] = useState<string[]>([])
+  const trendList = (trends || []).flatMap((s) => s.trends.slice(0, 8).map((t) => ({ key: `${s.key}:${t.topic}`, label: `${s.icon} ${t.topic}`, topic: t.topic, summary: t.summary })))
+  const getPrompt = async () => {
+    setPromptBusy(true)
+    try {
+      const sid = promptSeries || draft.series_id || ''
+      const ser = structure?.series.find((x) => x.id === sid)
+      const tg = promptTag ? tagOptions.find((t) => t.key === promptTag) : null
+      const tr = trendList.find((t) => t.key === promptTrend)
+      const r = await fetch('/api/writing-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        format: isLong ? 'longform' : 'note',
+        series: ser ? { name: ser.name, description: ser.description } : null,
+        bucket: tg?.name || null,
+        tags: (draft.tags || []).filter((k) => k !== promptTag),
+        trend: tr ? { topic: tr.topic, summary: tr.summary } : null,
+        angle: promptAngle.trim() || null,
+        previous: promptSeen.slice(-5),
+      }) })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error)
+      setPromptText(d.prompt); setPromptSeen((x) => [...x, d.prompt])
+    } catch (e) { alert('Prompt failed: ' + (e as Error).message) }
+    setPromptBusy(false)
+  }
   const [copiedSub, setCopiedSub] = useState(false)
   const [copiedLi, setCopiedLi] = useState(false)
 
@@ -389,10 +422,54 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                 {TONES.map((t) => <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)} tone</option>)}
               </select>
               <span className="flex-1" />
+              <button type="button" onClick={() => setShowPrompt((v) => !v)} className="sq-tool h-8 px-3 rounded-lg text-sm text-amber-800 bg-amber-50 hover:bg-amber-100 font-medium">
+                💡 Prompt
+              </button>
               <button type="button" onClick={loadNotes} className="sq-tool h-8 px-3 rounded-lg text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-medium">
                 🐘 Evernote
               </button>
             </div>
+
+            {showPrompt && (
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2 sq-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-amber-900">💡 Writing prompt <span className="font-normal text-amber-700/80">· steer it, or just hit the button</span></span>
+                  <button type="button" onClick={() => setShowPrompt(false)} className="text-xs text-amber-800 hover:underline">Close</button>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {trendList.length > 0 && (
+                    <select value={promptTrend} onChange={(e) => setPromptTrend(e.target.value)} className="h-8 max-w-[14rem] bg-white border border-amber-200 rounded-lg px-2">
+                      <option value="">Any trend / none</option>
+                      {trendList.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                    </select>
+                  )}
+                  {structure && (
+                    <select value={promptSeries || draft.series_id || ''} onChange={(e) => setPromptSeries(e.target.value)} className="h-8 bg-white border border-amber-200 rounded-lg px-2">
+                      <option value="">No series</option>
+                      {structure.series.map((x) => <option key={x.id} value={x.id}>{seriesEmoji(x)} {x.name}</option>)}
+                    </select>
+                  )}
+                  {tagOptions.length > 0 && (
+                    <select value={promptTag} onChange={(e) => setPromptTag(e.target.value)} className="h-8 bg-white border border-amber-200 rounded-lg px-2">
+                      <option value="">Any bucket / tag</option>
+                      {tagOptions.map((t) => <option key={t.key} value={t.key}>{t.emoji} {t.name}</option>)}
+                    </select>
+                  )}
+                  <input value={promptAngle} onChange={(e) => setPromptAngle(e.target.value)} placeholder="Angle (optional)" className="h-8 flex-1 min-w-[8rem] px-2 bg-white border border-amber-200 rounded-lg" />
+                </div>
+                {promptText && <p className="text-[15px] leading-relaxed text-amber-950 bg-white/80 rounded-lg px-3 py-2 border border-amber-100">{promptText}</p>}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={getPrompt} disabled={promptBusy} className="sq-btn-primary text-xs px-3 py-1.5 rounded-md font-semibold">{promptBusy ? <span className="sq-pulse">Thinking…</span> : promptText ? '🔄 Another' : '💡 Give me a prompt'}</button>
+                  {promptText && <button type="button" onClick={() => {
+                    const patch: Partial<typeof draft> = {}
+                    if (promptSeries) patch.series_id = promptSeries
+                    if (promptTag && !(draft.tags || []).includes(promptTag)) patch.tags = [...(draft.tags || []), promptTag]
+                    if (Object.keys(patch).length) update(patch)
+                    textareaRef.current?.focus()
+                  }} className="text-xs px-3 py-1.5 rounded-md bg-white border border-amber-200 text-amber-900 hover:bg-amber-100">Apply series &amp; tag to this draft</button>}
+                </div>
+              </div>
+            )}
 
             <textarea
               ref={textareaRef}
