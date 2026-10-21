@@ -358,7 +358,7 @@ export default function Structure(p: Props) {
           {/* ---------- weeks: one tile each, current week first ---------- */}
           <section className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-3 px-1">
-              <div className="mr-auto"><h3 className="text-lg font-bold">{year} · Weeks {showPast ? 1 : todayWeek}–{lastWeek}</h3><p className="text-[11px] text-gray-500">Weeks run Monday to Sunday; Week 1 is the week with Jan 1. Click a week to open or close it. Drag a title onto a day.</p></div>
+              <div className="mr-auto" />
               {todayWeek > 1 && <button onClick={() => setShowPast((v) => !v)} className="text-xs px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200">{showPast ? 'Hide earlier weeks' : `Show earlier weeks (${todayWeek - 1})`}</button>}
             </div>
 
