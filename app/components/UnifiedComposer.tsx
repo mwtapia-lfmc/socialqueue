@@ -321,6 +321,11 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
             </div>
           </div>
 
+          {!draft.publication_id && structure && (
+            <button type="button" onClick={() => update({ publication_id: structure.publication.id, format: draft.kind === 'blog' ? 'longform' : 'note', stage: 'drafting', tags: draft.tags ?? [] })}
+              className="self-start text-xs px-3 py-1.5 rounded-lg border-2 border-dashed border-orange-300 text-orange-700 hover:bg-orange-50">🗂 File under Substack · {structure.publication.name} — pick series, tags, hook</button>
+          )}
+
           {draft.publication_id && structure && (
             <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-3 space-y-2.5">
               <div className="flex flex-wrap items-center gap-2 text-xs">

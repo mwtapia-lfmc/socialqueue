@@ -208,6 +208,7 @@ export default function Home() {
     } as Item)
   }
 
+  const placeItem = (it: Item, date: string | null) => setStatus(it, { planned_for: date } as Partial<Item>)
   const markPublished = (it: Item) => setStatus(it, { status: 'published', published_at: new Date().toISOString() })
 
   const planTwoWeeks = async () => {
@@ -353,7 +354,7 @@ export default function Home() {
                 {view === 'compose' && (
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
-                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo}
+                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onPlan={planTwoWeeks} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
