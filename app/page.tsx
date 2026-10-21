@@ -7,7 +7,7 @@ import UnifiedComposer, { type Item } from './components/UnifiedComposer'
 import Drafts from './components/Drafts'
 import Brainstorm from './components/Brainstorm'
 import NotesLibrary from './components/NotesLibrary'
-import { isEmptyNote, type Note } from './lib/notes'
+import { isEmptyNote, notebookOf, type Note } from './lib/notes'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
@@ -167,8 +167,9 @@ export default function Home() {
   const startIdea = async (it: Item) => { await setStatus(it, { stage: 'drafting' } as Partial<Item>); edit({ ...it, stage: 'drafting' }) }
   const importNotes = async (all: { title: string; body: string; source: string }[]) => {
     if (!user) return
-    const rows = all.filter((r) => !isEmptyNote(r))
-    if (!rows.length) return alert('Nothing to save: those notes were empty.')
+    const seen = new Set(notes.map((n) => `${notebookOf(n)}|${n.title}|${n.body.slice(0, 200)}`))
+    const rows = all.filter((r) => !isEmptyNote(r) && !seen.has(`${notebookOf(r)}|${r.title}|${r.body.slice(0, 200)}`))
+    if (!rows.length) return alert('Nothing new to save: those notes were empty or already in your library.')
     for (let i = 0; i < rows.length; i += 50) {
       const { error } = await supabase.from('notes').insert(rows.slice(i, i + 50).map((r) => ({ ...r, user_id: user.id })))
       if (error) return alert('Could not save notes: ' + error.message)

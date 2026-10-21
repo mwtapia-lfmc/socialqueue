@@ -32,6 +32,7 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [notebook, setNotebook] = useState('')
+  const [uploadBook, setUploadBook] = useState('')
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -53,7 +54,9 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
     if (!fl?.length) return
     setBusy(true)
     try {
-      const rows = (await Promise.all(Array.from(fl).map(parseNoteFile))).flat()
+      const parsed = (await Promise.all(Array.from(fl).map(parseNoteFile))).flat()
+      const book = uploadBook.trim()
+      const rows = book ? parsed.map((r) => ({ ...r, source: `${r.source.split(':')[0]}:${book}` })) : parsed
       if (!rows.length) alert('No notes found in that file.')
       else await onImport(rows)
     } catch (e) { alert('Could not read that file: ' + (e as Error).message) }
@@ -117,6 +120,7 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
               {busy ? 'Importing…' : '📥 Upload files'}
               <input type="file" multiple accept=".enex,.txt,.md,.markdown,.html,.htm" className="hidden" onChange={(e) => { files(e.target.files); e.target.value = '' }} />
             </label>
+            <input value={uploadBook} onChange={(e) => setUploadBook(e.target.value)} list="sq-notebooks" placeholder="Notebook name for these files (optional)" className="h-9 w-64 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
             <span className="text-xs text-gray-500"><strong>Evernote:</strong> export a notebook as .enex, and the file name becomes the notebook name. <strong>Apple Notes:</strong> paste below.</span>
           </div>
           <div className="grid gap-2">
