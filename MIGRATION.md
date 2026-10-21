@@ -182,3 +182,9 @@ ALTER TABLE buckets ADD COLUMN IF NOT EXISTS emoji TEXT;
 ```sql
 ALTER TABLE items ADD COLUMN IF NOT EXISTS planned_time TEXT;
 ```
+
+## 10. Weekly goals (posts/notes and longform per week)
+
+```sql
+ALTER TABLE publications ADD COLUMN IF NOT EXISTS notes_per_week INT, ADD COLUMN IF NOT EXISTS longform_per_week INT;
+```

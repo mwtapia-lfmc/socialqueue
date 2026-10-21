@@ -251,6 +251,17 @@ export default function Home() {
 
   const markPublished = (it: Item) => setStatus(it, { status: 'published', published_at: new Date().toISOString() })
 
+  const setCadence = async (patch: { notes_per_week?: number; longform_per_week?: number }) => {
+    if (!structure) return
+    const prev = structure.publication
+    setStructure({ ...structure, publication: { ...prev, ...patch } })
+    const { error } = await supabase.from('publications').update(patch).eq('id', prev.id)
+    if (error) {
+      setStructure({ ...structure, publication: prev })
+      alert(/notes_per_week|longform_per_week/.test(error.message) ? 'Weekly goals can\'t be saved yet. Run this in the Supabase SQL editor, then try again:\n\nALTER TABLE publications ADD COLUMN IF NOT EXISTS notes_per_week INT, ADD COLUMN IF NOT EXISTS longform_per_week INT;' : 'Could not save the goal: ' + error.message)
+    }
+  }
+
   const clearPlaceholders = async (ids: string[]) => {
     const { error } = await supabase.from('items').delete().in('id', ids)
     if (error) return alert('Could not delete the placeholders: ' + error.message)
@@ -387,7 +398,7 @@ export default function Home() {
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
                 {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji} onNewSeries={createSeries}
-                  onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} />}
+                  onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} onCadence={setCadence} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
                 {view === 'calendar' && <Calendar items={items.filter((i) => (i.schedule_date || i.planned_for) && !isPlaceholder(i))} onSelect={edit}

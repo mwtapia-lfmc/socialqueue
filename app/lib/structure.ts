@@ -1,6 +1,6 @@
 import type { Item } from '../components/UnifiedComposer'
 
-export interface Publication { id: string; name: string; platform: string; year_theme: string | null; logo_url?: string | null }
+export interface Publication { id: string; name: string; platform: string; year_theme: string | null; logo_url?: string | null; notes_per_week?: number | null; longform_per_week?: number | null }
 export interface Series { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number; is_active: boolean; logo_url?: string | null; emoji?: string | null }
 export interface Bucket { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number; emoji?: string | null }
 export interface StructureData { publication: Publication; series: Series[]; buckets: Bucket[] }
@@ -170,3 +170,5 @@ export const shortDate = (k: string) => { const [y, m, d] = k.split('-').map(Num
 const PLACEHOLDER_TITLE = /^(note idea|longform idea|(inspirational|topical|educational|repurposed|note) note)$/i
 export const isPlaceholder = (it: Pick<Item, 'publication_id' | 'stage' | 'content' | 'hook' | 'title'>) =>
   !!it.publication_id && it.stage === 'idea' && !(it.content || '').trim() && !(it.hook || '').trim() && PLACEHOLDER_TITLE.test((it.title || '').trim())
+
+export const cadenceOf = (pub: Pick<Publication, 'notes_per_week' | 'longform_per_week'>): Record<Format, number> => ({ note: pub.notes_per_week ?? CADENCE.note, longform: pub.longform_per_week ?? CADENCE.longform })

@@ -9,6 +9,7 @@ import ImageStudio from './ImageStudio'
 import PlatformPreviews, { type Identity } from './PlatformPreviews'
 import SubstackPreview from './SubstackPreview'
 import SubstackNotePreview from './SubstackNotePreview'
+import LinkedInArticlePreview from './LinkedInArticlePreview'
 import { seriesEmoji, slugTag, type StructureData, type TagInfo } from '../lib/structure'
 import type { Connection } from './Accounts'
 
@@ -120,6 +121,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const isLong = type === 'longform'
   const [newTag, setNewTag] = useState('')
   const [copiedSub, setCopiedSub] = useState(false)
+  const [copiedLi, setCopiedLi] = useState(false)
 
   const setType = (t: ComposeType) => {
     if (t === 'post') {
@@ -528,7 +530,10 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
           </div>
 
           {type === 'longform' ? (
-            <SubstackPreview title={draft.title || ''} content={draft.content} image={firstImage} author={Object.values(identities)[0]} />
+            <div className="space-y-4">
+              <SubstackPreview title={draft.title || ''} content={draft.content} image={firstImage} author={Object.values(identities)[0]} />
+              <LinkedInArticlePreview title={draft.title || ''} content={draft.content} image={firstImage} author={identities.linkedin || Object.values(identities)[0]} />
+            </div>
           ) : (
             <div className="space-y-4">
             <PlatformPreviews
@@ -610,6 +615,13 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               } else await navigator.clipboard.writeText(draft.content)
               setCopiedSub(true); setTimeout(() => setCopiedSub(false), 1800)
             }} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#ff6719] text-white hover:brightness-95 disabled:opacity-50">{copiedSub ? '✓ Copied' : 'Copy for Substack'}</button>
+          )}
+          {(isLong || (type === 'post' && draft.platforms.linkedin && !connections.some((c) => c.platform === 'linkedin'))) && (
+            <button type="button" disabled={!draft.content.trim()} onClick={async () => {
+              const body = markdownToSocial(draft.content)
+              await navigator.clipboard.writeText(isLong && draft.title ? `${draft.title}\n\n${body}` : body)
+              setCopiedLi(true); setTimeout(() => setCopiedLi(false), 1800)
+            }} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#0a66c2] text-white hover:brightness-110 disabled:opacity-50">{copiedLi ? '✓ Copied' : 'Copy for LinkedIn'}</button>
           )}
           <span className="flex-1" />
           {type === 'post' && !showSchedule && (
