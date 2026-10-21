@@ -14,6 +14,7 @@ interface Props {
   overrides: Record<string, string>
   image?: string
   onOverride: (platform: Platform, text: string | null) => void
+  previewOnly?: boolean
 }
 
 const LI_CUT = 210
@@ -28,7 +29,7 @@ const SKIN: Record<Platform, { name: string; handle: string; bg: string; text: s
 
 const ALL = Object.keys(PLATFORM_META) as Platform[]
 
-export default function PlatformPreviews({ accounts, selected, onToggle, baseText, overrides, image, onOverride }: Props) {
+export default function PlatformPreviews({ accounts, selected, onToggle, baseText, overrides, image, onOverride, previewOnly }: Props) {
   const [editing, setEditing] = useState<Platform | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [buffer, setBuffer] = useState('')
@@ -64,10 +65,12 @@ export default function PlatformPreviews({ accounts, selected, onToggle, baseTex
           <div key={p} className={`rounded-2xl border transition ${isEditing ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200 hover:border-indigo-300'} ${skin.bg} overflow-hidden sq-fade-in`}>
             <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-gray-50/80">
               <span className={`text-[11px] px-2 py-0.5 rounded-full ${meta.color}`}>{meta.icon} {meta.label}</span>
-              <button type="button" onClick={() => onToggle(p)} title="Click to skip this platform"
+              {previewOnly
+                ? <span className="text-[11px] font-medium px-2 py-0.5 rounded-full border bg-gray-50 text-gray-500 border-gray-200">Preview only · copy &amp; paste</span>
+                : <button type="button" onClick={() => onToggle(p)} title="Click to skip this platform"
                 className="flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border transition bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Posting
-              </button>
+              </button>}
               {custom && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">Customized</span>}
               <span className="flex-1" />
               <span className={`text-[11px] ${lenCls}`}>{len}/{limit}</span>

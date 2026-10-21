@@ -656,6 +656,21 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                 update({ overrides: next })
               }}
             />
+            {!draft.platforms.linkedin && (
+              <PlatformPreviews previewOnly
+                accounts={connections.length ? identities : accounts}
+                selected={{ threads: false, twitter: false, bluesky: false, linkedin: true }}
+                onToggle={() => {}}
+                baseText={socialText}
+                overrides={draft.overrides || {}}
+                image={firstImage}
+                onOverride={(p, text) => {
+                  const next = { ...(draft.overrides || {}) }
+                  if (text == null) delete next[p]; else next[p] = text
+                  update({ overrides: next })
+                }}
+              />
+            )}
             {structure && (
             <SubstackNotePreview text={draft.content} hook={draft.hook} author={Object.values(identities)[0]}
               series={structure?.series.find((x) => x.id === draft.series_id) ? { name: structure!.series.find((x) => x.id === draft.series_id)!.name, emoji: seriesEmoji(structure!.series.find((x) => x.id === draft.series_id)!) } : null}
@@ -723,9 +738,9 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               setCopiedSub(true); setTimeout(() => setCopiedSub(false), 1800)
             }} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#ff6719] text-white hover:brightness-95 disabled:opacity-50">{copiedSub ? '✓ Copied' : 'Copy for Substack'}</button>
           )}
-          {(isLong || (type === 'post' && draft.platforms.linkedin && !connections.some((c) => c.platform === 'linkedin'))) && (
+          {(isLong || type === 'post') && (
             <button type="button" disabled={!draft.content.trim()} onClick={async () => {
-              const body = markdownToSocial(draft.content)
+              const body = markdownToSocial(!isLong && draft.overrides?.linkedin ? draft.overrides.linkedin : draft.content)
               await navigator.clipboard.writeText(isLong && draft.title ? `${draft.title}\n\n${body}` : body)
               setCopiedLi(true); setTimeout(() => setCopiedLi(false), 1800)
             }} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#0a66c2] text-white hover:brightness-110 disabled:opacity-50">{copiedLi ? '✓ Copied' : 'Copy for LinkedIn'}</button>

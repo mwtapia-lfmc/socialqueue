@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { parseNoteFile, type Note } from '../lib/notes'
+import { useMemo, useState } from 'react'
+import { parseNoteFile, pickNotes, notebookOf, type Note } from '../lib/notes'
 import { timeAgo } from '../lib/text'
 
 export const NOTES_SQL = `CREATE TABLE IF NOT EXISTS notes (
@@ -25,10 +25,23 @@ interface Props {
 export default function NotesLibrary({ notes, missing, onImport, onDelete }: Props) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [notebook, setNotebook] = useState('')
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState('')
-  const [open, setOpen] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [picked, setPicked] = useState<string[] | null>(null)
+  const [ask, setAsk] = useState('')
+  const [asking, setAsking] = useState(false)
+  const [answer, setAnswer] = useState<{ q: string; answer: string; sources: string[] } | null>(null)
+
+  const books = useMemo(() => {
+    const m = new Map<string, number>()
+    notes.forEach((n) => m.set(notebookOf(n), (m.get(notebookOf(n)) || 0) + 1))
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }))
+  }, [notes])
+  const open = (picked ?? books.slice(0, 2).map((b) => b.name)).filter((n) => books.some((b) => b.name === n))
+  const toggle = (name: string) => setPicked(open.includes(name) ? open.filter((x) => x !== name) : [...open, name])
 
   const files = async (fl: FileList | null) => {
     if (!fl?.length) return
@@ -41,7 +54,21 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
     setBusy(false)
   }
   const needle = q.trim().toLowerCase()
-  const shown = notes.filter((n) => !needle || `${n.title} ${n.body}`.toLowerCase().includes(needle))
+  const inBook = (name: string) => notes.filter((n) => notebookOf(n) === name && (!needle || `${n.title} ${n.body}`.toLowerCase().includes(needle)))
+
+  const askClaude = async () => {
+    if (!ask.trim() || asking) return
+    setAsking(true)
+    try {
+      const scope = open.length ? notes.filter((n) => open.includes(notebookOf(n))) : notes
+      const pool = pickNotes(scope, ask, 14, 1200)
+      const withBook = pool.map((p) => ({ ...p, notebook: notebookOf(scope.find((n) => n.title === p.title) || { source: '' }) }))
+      const r = await fetch('/api/ask-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: ask, notes: withBook }) })
+      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      setAnswer({ q: ask, answer: d.answer, sources: d.sources || [] })
+    } catch (e) { alert('Ask failed: ' + (e as Error).message) }
+    setAsking(false)
+  }
 
   if (missing) {
     return (
@@ -56,45 +83,88 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
 
   return (
     <div className="space-y-4 sq-fade-in">
-      <div className="sq-card p-4 space-y-3">
-        <p className="text-sm text-gray-600">Your raw material. Prompts, article ideas and the grader draw on these so they sound like you, not a stranger.</p>
-        <div className="flex flex-wrap gap-2 items-center text-sm">
-          <label className="sq-btn-primary px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
-            {busy ? 'Importing…' : '📥 Upload notes'}
-            <input type="file" multiple accept=".enex,.txt,.md,.markdown,.html,.htm" className="hidden" onChange={(e) => { files(e.target.files); e.target.value = '' }} />
-          </label>
-          <span className="text-xs text-gray-500"><strong>Evernote:</strong> export a notebook as .enex. <strong>Apple Notes:</strong> paste below, or save a note as text or HTML.</span>
+      {notes.length > 0 && (
+        <div className="sq-card p-4 space-y-2 border-amber-200 bg-amber-50/40">
+          <div className="flex gap-2">
+            <input value={ask} onChange={(e) => setAsk(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && askClaude()} placeholder="Ask Claude about your notes: &quot;what did I write about the algorithm?&quot;"
+              className="flex-1 h-10 px-3 text-sm border border-amber-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
+            <button onClick={askClaude} disabled={asking || !ask.trim()} className="sq-btn-primary h-10 px-4 rounded-lg text-sm font-semibold">{asking ? <span className="sq-pulse">Looking…</span> : '🔎 Ask'}</button>
+          </div>
+          <p className="text-xs text-gray-500">Searching {open.length ? <strong>{open.join(', ')}</strong> : 'all notes'}. Pick notebooks below to narrow or widen it.</p>
+          {answer && (
+            <div className="bg-white rounded-lg border border-amber-100 px-4 py-3 space-y-1.5">
+              <p className="text-[11px] text-gray-400">“{answer.q}”</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{answer.answer}</p>
+              {answer.sources.length > 0 && <p className="text-[11px] text-gray-500">From: {answer.sources.join(' · ')}</p>}
+              <button onClick={() => setAnswer(null)} className="text-[11px] text-gray-400 hover:underline">Clear</button>
+            </div>
+          )}
         </div>
-        <div className="grid gap-2">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional)" className="h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="Paste a note, a rant, a voice memo transcript…" className="p-3 text-sm border border-gray-200 rounded-lg bg-white" />
-          <div><button disabled={!body.trim() || busy} onClick={async () => { setBusy(true); await onImport([{ title: title.trim() || body.trim().split('\n')[0].slice(0, 60), body: body.trim(), source: 'paste' }]); setTitle(''); setBody(''); setBusy(false) }} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium">Save note</button></div>
+      )}
+
+      <details className="sq-card p-4" open={notes.length === 0}>
+        <summary className="text-sm font-semibold cursor-pointer">📥 Add notes <span className="font-normal text-gray-400">· Evernote .enex, text files, or paste</span></summary>
+        <div className="space-y-3 mt-3">
+          <div className="flex flex-wrap gap-2 items-center text-sm">
+            <label className="sq-btn-primary px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+              {busy ? 'Importing…' : '📥 Upload files'}
+              <input type="file" multiple accept=".enex,.txt,.md,.markdown,.html,.htm" className="hidden" onChange={(e) => { files(e.target.files); e.target.value = '' }} />
+            </label>
+            <span className="text-xs text-gray-500"><strong>Evernote:</strong> export a notebook as .enex, and the file name becomes the notebook name. <strong>Apple Notes:</strong> paste below.</span>
+          </div>
+          <div className="grid gap-2">
+            <div className="flex gap-2">
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional)" className="flex-1 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
+              <input value={notebook} onChange={(e) => setNotebook(e.target.value)} list="sq-notebooks" placeholder="Notebook (e.g. Apple Notes)" className="w-52 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
+              <datalist id="sq-notebooks">{books.map((b) => <option key={b.name} value={b.name} />)}</datalist>
+            </div>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="Paste a note, a rant, a voice memo transcript…" className="p-3 text-sm border border-gray-200 rounded-lg bg-white" />
+            <div><button disabled={!body.trim() || busy} onClick={async () => { setBusy(true); await onImport([{ title: title.trim() || body.trim().split('\n')[0].slice(0, 60), body: body.trim(), source: `paste:${notebook.trim() || 'Pasted'}` }]); setTitle(''); setBody(''); setBusy(false) }} className="text-sm px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium">Save note</button></div>
+          </div>
         </div>
-      </div>
+      </details>
 
       {notes.length > 0 && (
         <>
-          <div className="flex items-center gap-3">
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes…" className="w-full sm:w-72 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
-            <span className="text-xs text-gray-400">{notes.length} notes</span>
-          </div>
-          <ul className="sq-card divide-y divide-gray-100 overflow-hidden">
-            {shown.slice(0, 200).map((n) => (
-              <li key={n.id} className="px-4 py-2.5">
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setOpen(open === n.id ? null : n.id)} className="flex-1 min-w-0 text-left">
-                    <span className="block text-sm font-medium truncate">{n.title}</span>
-                    {open !== n.id && <span className="block text-xs text-gray-500 truncate">{n.body.replace(/\s+/g, ' ')}</span>}
-                  </button>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 shrink-0">{n.source}</span>
-                  <span className="hidden md:inline text-[11px] text-gray-400 shrink-0">{timeAgo(n.created_at)}</span>
-                  <button onClick={() => confirm('Delete this note?') && onDelete(n)} className="text-gray-400 hover:text-red-600 px-1 shrink-0">×</button>
-                </div>
-                {open === n.id && <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap max-h-72 overflow-y-auto">{n.body}</p>}
-              </li>
+          <div className="flex flex-wrap items-center gap-2">
+            {books.map((b) => (
+              <button key={b.name} onClick={() => toggle(b.name)} aria-pressed={open.includes(b.name)}
+                className={`h-8 px-3 rounded-full text-sm font-medium border ${open.includes(b.name) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-600'}`}>📓 {b.name} <span className="opacity-70">{b.count}</span></button>
             ))}
-          </ul>
-          {shown.length > 200 && <p className="text-xs text-gray-400">Showing the first 200. Search to narrow.</p>}
+            <span className="flex-1" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search open notebooks…" className="w-full sm:w-60 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
+          </div>
+          {open.length === 0 ? <p className="text-sm text-gray-400">Pick a notebook above to open it. Open as many as you want side by side.</p> : (
+            <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${open.length > 2 ? 300 : 360}px, 1fr))` }}>
+              {open.map((name) => {
+                const rows = inBook(name)
+                return (
+                  <section key={name} className="sq-card overflow-hidden flex flex-col max-h-[70vh]">
+                    <header className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">📓 {name}</h3>
+                      <span className="text-[11px] text-gray-400">{rows.length} notes</span>
+                    </header>
+                    <ul className="divide-y divide-gray-100 overflow-y-auto">
+                      {rows.slice(0, 150).map((n) => (
+                        <li key={n.id} className="px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setExpanded(expanded === n.id ? null : n.id)} className="flex-1 min-w-0 text-left">
+                              <span className="block text-sm font-medium truncate">{n.title}</span>
+                              {expanded !== n.id && <span className="block text-xs text-gray-500 truncate">{n.body.replace(/\s+/g, ' ')}</span>}
+                            </button>
+                            <span className="text-[11px] text-gray-400 shrink-0">{timeAgo(n.created_at)}</span>
+                            <button onClick={() => confirm('Delete this note?') && onDelete(n)} className="text-gray-400 hover:text-red-600 px-1 shrink-0">×</button>
+                          </div>
+                          {expanded === n.id && <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{n.body}</p>}
+                        </li>
+                      ))}
+                      {rows.length === 0 && <li className="px-4 py-6 text-sm text-gray-400 text-center">No matches.</li>}
+                    </ul>
+                  </section>
+                )
+              })}
+            </div>
+          )}
         </>
       )}
     </div>
