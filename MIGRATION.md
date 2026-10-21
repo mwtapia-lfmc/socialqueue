@@ -169,3 +169,10 @@ ALTER TABLE items
 ALTER TABLE publications ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE series ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ```
+
+## 8. Emojis for series and tag-buckets
+
+```sql
+ALTER TABLE series ADD COLUMN IF NOT EXISTS emoji TEXT;
+ALTER TABLE buckets ADD COLUMN IF NOT EXISTS emoji TEXT;
+```

@@ -8,7 +8,8 @@ import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
 import PlatformPreviews, { type Identity } from './PlatformPreviews'
 import SubstackPreview from './SubstackPreview'
-import { SEED_TAGS, type StructureData } from '../lib/structure'
+import SubstackNotePreview from './SubstackNotePreview'
+import { seriesEmoji, slugTag, type StructureData, type TagInfo } from '../lib/structure'
 import type { Connection } from './Accounts'
 
 export interface Item {
@@ -47,6 +48,7 @@ interface Props {
   accounts?: Partial<Record<Platform, Identity>>
   connections?: Connection[]
   structure?: StructureData | null
+  tagOptions?: TagInfo[]
   item: Item | null
   onSaved: (item: Item) => void
   onScheduled: () => void
@@ -73,7 +75,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -108,6 +110,27 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     setSaveState('dirty')
   }
 
+  type ComposeType = 'post' | 'note' | 'longform'
+  const typeOf = (d: { kind: string; format?: string | null; publication_id?: string | null }): ComposeType =>
+    d.kind === 'blog' ? 'longform' : d.publication_id && d.format === 'note' ? 'note' : 'post'
+  const type = typeOf(draft)
+  const isSubstack = type !== 'post'
+  const [newTag, setNewTag] = useState('')
+  const [copiedSub, setCopiedSub] = useState(false)
+
+  const setType = (t: ComposeType) => {
+    if (t === 'post') {
+      const anyOn = PLATFORMS.some((q) => draft.platforms[q])
+      update({ kind: 'post', format: null, publication_id: null, platforms: anyOn ? draft.platforms : empty(accounts).platforms })
+    } else if (structure) {
+      update({ kind: t === 'longform' ? 'blog' : 'post', format: t, publication_id: draft.publication_id ?? structure.publication.id, stage: draft.stage ?? 'drafting' })
+    } else update({ kind: t === 'longform' ? 'blog' : 'post' })
+  }
+  const addTag = (raw: string) => {
+    const k = slugTag(raw); if (!k || (draft.tags || []).includes(k)) { setNewTag(''); return }
+    update({ tags: [...(draft.tags || []), k] }); setNewTag('')
+  }
+
   const persist = useCallback(
     async (extra: Partial<Item> = {}) => {
       const payload = {
@@ -122,12 +145,14 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
         analysis: draft.analysis,
         overrides: draft.overrides || {},
         accounts: draft.accounts || {},
-        // structure fields only travel with items that belong to a publication, so ordinary posts save unchanged
-        ...(draft.publication_id ? {
-          publication_id: draft.publication_id, series_id: draft.series_id ?? null, bucket_id: draft.bucket_id ?? null,
-          format: draft.format ?? (draft.kind === 'blog' ? 'longform' : 'note'), hook: draft.hook || null, stage: draft.stage ?? 'drafting',
-          planned_for: draft.planned_for || null, source_item_id: draft.source_item_id ?? null, tags: draft.tags ?? [],
-        } : {}),
+        // Substack structure fields (Notes and Longform belong to the publication; plain posts clear them)
+        ...(structure ? (() => {
+          const t = typeOf(draft)
+          return t === 'post'
+            ? { publication_id: null, series_id: null, format: null, stage: null, tags: [], hook: null, planned_for: draft.planned_for || null }
+            : { publication_id: draft.publication_id ?? structure.publication.id, series_id: draft.series_id ?? null, bucket_id: draft.bucket_id ?? null, format: t, hook: draft.hook || null,
+                stage: draft.stage ?? 'drafting', planned_for: draft.planned_for || null, source_item_id: draft.source_item_id ?? null, tags: draft.tags ?? [] }
+        })() : {}),
         updated_at: new Date().toISOString(),
         ...extra,
       }
@@ -158,7 +183,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
       onSaved(data as Item)
       return data as Item
     },
-    [draft, id, userId, onSaved]
+    [draft, id, userId, onSaved, structure]
   )
 
   useEffect(() => {
@@ -303,10 +328,10 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
         <div className="sq-card p-5 md:p-6 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-1 p-1 bg-gray-100 rounded-full">
-              {(['post', 'blog'] as const).map((k) => (
-                <button key={k} type="button" onClick={() => update({ kind: k })}
-                  className={`sq-tab px-4 py-1.5 rounded-full text-sm font-medium ${draft.kind === k ? 'sq-tab-active' : 'text-gray-600 hover:text-gray-900'}`}>
-                  {k === 'post' ? '💬 Post' : '📝 Blog'}
+              {(structure ? (['post', 'note', 'longform'] as const) : (['post', 'longform'] as const)).map((t) => (
+                <button key={t} type="button" onClick={() => setType(t)}
+                  className={`sq-tab px-4 py-1.5 rounded-full text-sm font-medium ${type === t ? 'sq-tab-active' : 'text-gray-600 hover:text-gray-900'}`}>
+                  {t === 'post' ? '💬 Post' : t === 'note' ? '🗒 Note' : '📰 Longform'}
                 </button>
               ))}
             </div>
@@ -321,56 +346,6 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
             </div>
           </div>
 
-          {!draft.publication_id && structure && (
-            <button type="button" onClick={() => update({ publication_id: structure.publication.id, format: draft.kind === 'blog' ? 'longform' : 'note', stage: 'drafting', tags: draft.tags ?? [] })}
-              className="self-start text-xs px-3 py-1.5 rounded-lg border-2 border-dashed border-orange-300 text-orange-700 hover:bg-orange-50">🗂 File under Substack · {structure.publication.name} — pick series, tags, hook</button>
-          )}
-
-          {draft.publication_id && structure && (
-            <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-3 space-y-2.5">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="font-semibold text-[#c2410c]">Substack · {structure.publication.name}</span>
-                <label className="flex items-center gap-1 text-gray-600">Series
-                  <select value={draft.series_id || ''} onChange={(e) => update({ series_id: e.target.value || null })} className="h-7 bg-white border border-gray-200 rounded-md px-1.5">
-                    <option value="">None</option>{structure.series.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                  </select>
-                </label>
-                <label className="flex items-center gap-1 text-gray-600">Bucket
-                  <select value={draft.bucket_id || ''} onChange={(e) => update({ bucket_id: e.target.value || null })} className="h-7 bg-white border border-gray-200 rounded-md px-1.5">
-                    <option value="">None</option>{structure.buckets.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                  </select>
-                </label>
-                <div className="flex gap-0.5 p-0.5 bg-white border border-gray-200 rounded-md">
-                  {(['note', 'longform'] as const).map((f) => (
-                    <button key={f} type="button" onClick={() => update({ format: f, kind: f === 'longform' ? 'blog' : 'post' })}
-                      className={`px-2 py-1 rounded ${(draft.format ?? (draft.kind === 'blog' ? 'longform' : 'note')) === f ? 'bg-[#ff6719] text-white' : 'text-gray-600'}`}>{f === 'note' ? 'Note' : 'Longform'}</button>
-                  ))}
-                </div>
-                {draft.status === 'draft' && (
-                  <label className="flex items-center gap-1 text-gray-600">Status
-                    <select value={draft.stage ?? 'drafting'} onChange={(e) => update({ stage: e.target.value as 'idea' | 'drafting' })} className="h-7 bg-white border border-gray-200 rounded-md px-1.5">
-                      <option value="idea">Idea</option><option value="drafting">Drafting</option>
-                    </select>
-                  </label>
-                )}
-                <label className="flex items-center gap-1 text-gray-600">Planned
-                  <input type="date" value={draft.planned_for || ''} onChange={(e) => update({ planned_for: e.target.value || null })} className="h-7 bg-white border border-gray-200 rounded-md px-1.5" />
-                </label>
-              </div>
-              <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook — the line someone will screenshot"
-                className="w-full text-[15px] italic bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300" />
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                {(draft.tags || []).map((t) => (
-                  <button key={t} type="button" onClick={() => update({ tags: (draft.tags || []).filter((x) => x !== t) })} title="Remove tag" className="px-2 py-0.5 rounded-full bg-orange-200 text-orange-900 hover:bg-orange-300">#{t} ×</button>
-                ))}
-                {SEED_TAGS.filter((t) => !(draft.tags || []).includes(t)).map((t) => (
-                  <button key={t} type="button" onClick={() => update({ tags: [...(draft.tags || []), t] })} className="px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:border-orange-300 hover:text-orange-700">+ {t}</button>
-                ))}
-              </div>
-              {draft.source_item_id && <p className="text-[11px] text-gray-500">Repurposed from an earlier post.</p>}
-            </div>
-          )}
-
           {draft.kind === 'blog' && (
             <input
               value={draft.title || ''}
@@ -381,6 +356,10 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
           )}
 
           <div>
+            {isSubstack && (
+              <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook — the line someone will screenshot"
+                className="w-full mb-2 text-[15px] italic bg-orange-50/60 border border-orange-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300" />
+            )}
             <div className="flex flex-wrap items-center gap-1 mb-2 relative">
               {[
                 { label: 'B', title: 'Bold', act: () => wrap('**'), cls: 'font-bold' },
@@ -418,7 +397,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               ref={textareaRef}
               value={draft.content}
               onChange={(e) => update({ content: e.target.value })}
-              placeholder={draft.kind === 'blog' ? 'Write your post. **bold**, _italic_, ## headings, - lists…' : "What's happening? **bold** and _italic_ become styled text on social."}
+              placeholder={type === 'longform' ? 'Write your article. **bold**, _italic_, ## headings, - lists…' : type === 'note' ? 'Write your Note…' : "What's happening? **bold** and _italic_ become styled text on social."}
               rows={draft.kind === 'blog' ? 14 : 7}
               className="w-full p-4 text-[15px] leading-relaxed border border-gray-200 rounded-xl bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
             />
@@ -439,7 +418,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
             )}
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
               <span className="text-gray-400">{countChars(draft.content)} chars</span>
-              {draft.kind === 'post' && selectedPlatforms.map((p) => {
+              {type === 'post' && selectedPlatforms.map((p) => {
                 const limit = PLATFORM_LIMITS[p]
                 const n = countChars(effectiveText(p))
                 const cls = n > limit ? 'text-red-600 font-semibold' : n > limit * 0.9 ? 'text-amber-600' : 'text-gray-500'
@@ -472,7 +451,34 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
             </div>
           )}
 
-          {draft.kind === 'post' && (
+          {isSubstack && structure && (
+            <div className="rounded-xl bg-orange-50/50 border border-orange-100 p-3 space-y-2.5">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <label className="flex items-center gap-1.5 text-gray-700 font-medium">Series
+                  <select value={draft.series_id || ''} onChange={(e) => update({ series_id: e.target.value || null })} className="h-8 text-sm bg-white border border-gray-200 rounded-lg px-2 font-normal">
+                    <option value="">No series</option>
+                    {structure.series.map((x) => <option key={x.id} value={x.id}>{seriesEmoji(x)} {x.name}</option>)}
+                  </select>
+                </label>
+                {draft.planned_for && <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700">📅 planned {draft.planned_for} <button type="button" onClick={() => update({ planned_for: null })} className="ml-1 text-blue-400 hover:text-red-600">×</button></span>}
+                <span className="text-gray-400">Substack can't be posted to from here, so Notes and Longform are saved, then pasted into Substack.</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-gray-500 mr-1">Tags</span>
+                {(draft.tags || []).map((k) => {
+                  const info = tagOptions.find((t) => t.key === k)
+                  return <button key={k} type="button" onClick={() => update({ tags: (draft.tags || []).filter((x) => x !== k) })} title="Remove tag" className="px-2.5 py-1 rounded-full bg-orange-200 text-orange-900 hover:bg-orange-300">{info?.emoji || '🏷️'} {k} ×</button>
+                })}
+                {tagOptions.filter((t) => !(draft.tags || []).includes(t.key)).slice(0, 14).map((t) => (
+                  <button key={t.key} type="button" onClick={() => update({ tags: [...(draft.tags || []), t.key] })} className="px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-700">{t.emoji} {t.name}</button>
+                ))}
+                <input value={newTag} onChange={(e) => setNewTag(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(newTag) } }} onBlur={() => newTag.trim() && addTag(newTag)}
+                  placeholder="+ new tag" className="h-7 w-28 px-2 rounded-full border border-dashed border-orange-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-orange-200" />
+              </div>
+            </div>
+          )}
+
+          {type === 'post' && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] text-gray-400 mr-1">Publishing to <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 align-middle mx-0.5" /> =</span>
               {PLATFORMS.map((p) => (
@@ -508,12 +514,16 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
       <div className="lg:col-span-2 lg:col-start-4 lg:row-start-1 lg:row-span-3">
         <div className="sq-card p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-800">{draft.kind === 'blog' ? 'Preview' : 'Live previews'}</h3>
-            {draft.kind === 'post' && <span className="text-[11px] text-gray-400">click any to edit for that platform</span>}
+            <h3 className="text-sm font-semibold text-gray-800">{type === 'post' ? 'Live previews' : 'Preview'}</h3>
+            {type === 'post' && <span className="text-[11px] text-gray-400">click any to edit for that platform</span>}
           </div>
 
-          {draft.kind === 'blog' ? (
+          {type === 'longform' ? (
             <SubstackPreview title={draft.title || ''} content={draft.content} image={firstImage} author={Object.values(identities)[0]} />
+          ) : type === 'note' ? (
+            <SubstackNotePreview text={draft.content} hook={draft.hook} author={Object.values(identities)[0]}
+              series={structure?.series.find((x) => x.id === draft.series_id) ? { name: structure!.series.find((x) => x.id === draft.series_id)!.name, emoji: seriesEmoji(structure!.series.find((x) => x.id === draft.series_id)!) } : null}
+              tags={(draft.tags || []).map((k) => ({ key: k, emoji: tagOptions.find((t) => t.key === k)?.emoji || '🏷️' }))} />
           ) : (
             <PlatformPreviews
               accounts={connections.length ? identities : accounts}
@@ -577,16 +587,26 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
           </button>
           <button type="button" onClick={() => persist()} disabled={saveState === 'saving'}
             className="px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-800 hover:bg-gray-200">
-            Save draft
+            {type === 'post' ? 'Save draft' : '💾 Save'}
           </button>
+          {isSubstack && (
+            <button type="button" disabled={!draft.content.trim()} onClick={async () => {
+              if (type === 'longform') {
+                const html = `<h1>${(draft.title || '').replace(/</g, '&lt;')}</h1>${markdownToHtml(draft.content)}`
+                try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([`${draft.title || ''}\n\n${draft.content}`], { type: 'text/plain' }) })]) }
+                catch { await navigator.clipboard.writeText(`${draft.title || ''}\n\n${draft.content}`) }
+              } else await navigator.clipboard.writeText(draft.content)
+              setCopiedSub(true); setTimeout(() => setCopiedSub(false), 1800)
+            }} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-[#ff6719] text-white hover:brightness-95 disabled:opacity-50">{copiedSub ? '✓ Copied' : 'Copy for Substack'}</button>
+          )}
           <span className="flex-1" />
-          {draft.kind === 'post' && !showSchedule && (
+          {type === 'post' && !showSchedule && (
             <button type="button" onClick={postNow} disabled={posting || !draft.content.trim()}
               className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-50">
               {posting ? <span className="sq-pulse">Posting…</span> : '🚀 Post now'}
             </button>
           )}
-          {!showSchedule ? (
+          {type !== 'post' ? null : !showSchedule ? (
             <button type="button" onClick={() => setShowSchedule(true)} disabled={!draft.content.trim()} className="sq-btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold">
               📅 Schedule →
             </button>

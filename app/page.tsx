@@ -17,7 +17,7 @@ import Trends from './components/Trends'
 import Help from './components/Help'
 import Structure, { type StructureState, type NewCtx } from './components/Structure'
 import { logoBlob, uploadLogo } from './lib/images'
-import { SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
+import { tagRegistry, SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
 
 type View = 'home' | 'compose' | 'batch' | 'structure' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
 
@@ -199,33 +199,53 @@ export default function Home() {
   const repurposeStructure = (src: Item) => {
     const toFormat: Format = src.format === 'longform' ? 'note' : 'longform'
     const firstPara = (src.content || '').split(/\n\s*\n/)[0] || ''
-    const bucket = structure?.buckets.find((b) => b.key === 'repurposed')
     edit({
-      ...newStructureItem(toFormat, { seriesId: src.series_id, bucketId: bucket?.id ?? src.bucket_id }),
+      ...newStructureItem(toFormat, { seriesId: src.series_id, bucketId: src.bucket_id }),
       title: toFormat === 'longform' ? src.title : null,
       content: toFormat === 'note' ? (src.hook || firstPara).slice(0, 280) : src.content,
-      hook: src.hook || '', tags: src.tags || [], source_item_id: src.id,
+      hook: src.hook || '', tags: [...new Set([...(src.tags || []), 'repurposed'])], source_item_id: src.id,
     } as Item)
   }
 
   const placeItem = (it: Item, date: string | null) => setStatus(it, { planned_for: date } as Partial<Item>)
+  const setEmoji = async (kind: 'series' | 'tag', ref: string, emoji: string) => {
+    if (!structure) return
+    const fail = (m: string) => alert(/emoji/.test(m) ? 'The emoji column is missing. Run this in the Supabase SQL editor, then try again:\n\nALTER TABLE series ADD COLUMN IF NOT EXISTS emoji TEXT;\nALTER TABLE buckets ADD COLUMN IF NOT EXISTS emoji TEXT;' : 'Could not save the emoji: ' + m)
+    if (kind === 'series') {
+      const { error } = await supabase.from('series').update({ emoji }).eq('id', ref)
+      if (error) return fail(error.message)
+      setStructure({ ...structure, series: structure.series.map((x) => (x.id === ref ? { ...x, emoji } : x)) })
+      return
+    }
+    const row = structure.buckets.find((b) => b.key === ref)
+    if (row) {
+      const { error } = await supabase.from('buckets').update({ emoji }).eq('id', row.id)
+      if (error) return fail(error.message)
+      setStructure({ ...structure, buckets: structure.buckets.map((b) => (b.id === row.id ? { ...b, emoji } : b)) })
+    } else {
+      const { data, error } = await supabase.from('buckets').insert({ user_id: user.id, publication_id: structure.publication.id, key: ref, name: ref, emoji, sort_order: structure.buckets.length }).select().single()
+      if (error) return fail(error.message)
+      setStructure({ ...structure, buckets: [...structure.buckets, data as any] })
+    }
+  }
+
   const markPublished = (it: Item) => setStatus(it, { status: 'published', published_at: new Date().toISOString() })
 
   const planTwoWeeks = async () => {
     if (!structure) return
-    const bs = structure.buckets
     const today = new Date()
     const day = (n: number) => { const d = new Date(today); d.setDate(today.getDate() + n); return ymd(d) }
     const base = { user_id: user.id, tone: 'casual', platforms: noPlatforms, hashtags: [], image_urls: [], status: 'draft', stage: 'idea', publication_id: structure.publication.id, tags: [] }
     const rows = [
-      ...Array.from({ length: 14 }, (_, i) => ({ ...base, kind: 'post', format: 'note', title: `${bs[i % bs.length]?.name || 'Note'} note`, content: '', bucket_id: bs[i % bs.length]?.id ?? null, planned_for: day(i) })),
-      ...[2, 9].map((n, i) => ({ ...base, kind: 'blog', format: 'longform', title: 'Longform idea', content: '', bucket_id: bs[(i + 1) % Math.max(1, bs.length)]?.id ?? null, planned_for: day(n) })),
+      ...Array.from({ length: 14 }, (_, i) => ({ ...base, kind: 'post', format: 'note', title: 'Note idea', content: '', planned_for: day(i) })),
+      ...[2, 9].map((n, i) => ({ ...base, kind: 'blog', format: 'longform', title: 'Longform idea', content: '', planned_for: day(n) })),
     ]
     const { error } = await supabase.from('items').insert(rows)
     if (error) return alert('Planning failed: ' + error.message)
     await loadItems(user.id)
   }
 
+  const tagOptions = structure ? tagRegistry(structure.buckets, items.filter((i) => i.publication_id === structure.publication.id)) : []
   const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea')
   const scheduled = items.filter((i) => i.status === 'scheduled')
   const queue = items.filter((i) => i.status !== 'draft')
@@ -352,9 +372,9 @@ export default function Home() {
 
                 {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
                 {view === 'compose' && (
-                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
-                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem}
+                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onPlan={planTwoWeeks} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}

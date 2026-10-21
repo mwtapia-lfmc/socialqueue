@@ -1,8 +1,8 @@
 import type { Item } from '../components/UnifiedComposer'
 
 export interface Publication { id: string; name: string; platform: string; year_theme: string | null; logo_url?: string | null }
-export interface Series { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number; is_active: boolean; logo_url?: string | null }
-export interface Bucket { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number }
+export interface Series { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number; is_active: boolean; logo_url?: string | null; emoji?: string | null }
+export interface Bucket { id: string; publication_id: string; key: string; name: string; description: string | null; sort_order: number; emoji?: string | null }
 export interface StructureData { publication: Publication; series: Series[]; buckets: Bucket[] }
 
 export type Stage = 'idea' | 'drafting' | 'scheduled' | 'published'
@@ -116,3 +116,37 @@ ALTER TABLE items
   ADD COLUMN IF NOT EXISTS planned_for DATE,
   ADD COLUMN IF NOT EXISTS source_item_id UUID REFERENCES items(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';`
+
+// ---- tags are the buckets: a registry built from bucket rows + seed tags + whatever items use ----
+export interface TagInfo { key: string; name: string; emoji: string; count: number; rowId?: string }
+
+export const slugTag = (s: string) => s.trim().toLowerCase().replace(/^#/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+export const DEFAULT_SERIES_EMOJI: Record<string, string> = { semiotics: '🪧', etymology: '📜', 'media-politics': '🏛️', 'consuming-media': '📺' }
+export const DEFAULT_TAG_EMOJI: Record<string, string> = {
+  culture: '🎭', music: '🎵', 'grateful-dead': '💀', 'west-coast': '🌴', 'east-coast-bias': '🗽', quotable: '💬', 'creator-recommendation': '🤝', 'lead-magnet': '🧲',
+  inspirational: '✨', topical: '📰', educational: '🎓', repurposed: '♻️',
+}
+export const EMOJI_CHOICES = ['🪧', '📜', '🏛️', '📺', '📚', '🎙️', '🎬', '📰', '🧠', '🔍', '💡', '🔥', '⚡', '🎯', '🌎', '🌴', '🗽', '🎵', '🎸', '💀', '🌹', '🎭', '🎨', '📻', '📱', '🤝', '🧲', '💬', '✨', '🎓', '♻️', '🏷️', '❤️', '😂', '🤔', '👀', '🚀', '🌊', '☀️', '🕶️']
+
+export const seriesEmoji = (s: Pick<Series, 'key' | 'emoji'>) => s.emoji || DEFAULT_SERIES_EMOJI[s.key] || '📚'
+
+// Effective tags for an item: its tags plus the key of a legacy bucket_id
+export function itemTags(it: Pick<Item, 'tags' | 'bucket_id'>, buckets: Bucket[]): string[] {
+  const set = new Set(it.tags || [])
+  const legacy = buckets.find((b) => b.id === it.bucket_id)
+  if (legacy) set.add(legacy.key)
+  return [...set]
+}
+
+export function tagRegistry(buckets: Bucket[], items: Item[]): TagInfo[] {
+  const keys = new Set<string>([...buckets.map((b) => b.key), ...SEED_TAGS])
+  for (const it of items) for (const t of itemTags(it, buckets)) keys.add(t)
+  return [...keys].map((key) => {
+    const row = buckets.find((b) => b.key === key)
+    return {
+      key, rowId: row?.id, name: row?.name || key, emoji: row?.emoji || DEFAULT_TAG_EMOJI[key] || '🏷️',
+      count: items.filter((i) => itemTags(i, buckets).includes(key)).length,
+    }
+  }).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}
