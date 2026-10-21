@@ -111,6 +111,7 @@ export default function Structure(p: Props) {
   const [repoFormat, setRepoFormat] = useState<Format>('note')
   const [innerTag, setInnerTag] = useState('')
   const [repoQuery, setRepoQuery] = useState('')
+  const [renameKey, setRenameKey] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overKey, setOverKey] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -261,7 +262,14 @@ export default function Structure(p: Props) {
           <div onClick={() => { setOpenKey(open ? null : g.key); setInnerTag('') }} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpenKey(open ? null : g.key)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer">
             {g.logo ? <img src={g.logo} alt="" className="h-7 w-7 rounded-lg object-cover border border-orange-100" /> : null}
             <EmojiBtn emoji={g.emoji} onPick={(em) => p.onEmoji(g.kind, g.ref, em)} />
-            <span className="min-w-0 flex-1 text-sm font-semibold truncate">{g.kind === 'tag' ? '#' : ''}{g.name}</span>
+            {renameKey === g.key && g.kind === 'series' ? (
+              <input autoFocus defaultValue={g.name} onClick={(e) => e.stopPropagation()}
+                onBlur={(e) => { const v = e.target.value.trim(); setRenameKey(null); if (v && v !== g.name) p.onRename('series', g.ref, { name: v }) }}
+                onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenameKey(null) }}
+                className="min-w-0 flex-1 text-sm font-semibold border border-orange-300 rounded px-1 focus:outline-none focus:ring-2 focus:ring-orange-200" />
+            ) : (
+              <span onDoubleClick={g.kind === 'series' ? (e) => { e.stopPropagation(); setRenameKey(g.key) } : undefined} title={g.kind === 'series' ? 'Double-click to rename' : undefined} className="min-w-0 flex-1 text-sm font-semibold truncate">{g.kind === 'tag' ? '#' : ''}{g.name}</span>
+            )}
             <span className={`text-sm font-bold ${g.list.length ? 'text-orange-600' : 'text-gray-300'}`}>{g.list.length}</span>
             <span className="text-gray-400 text-xs">{open ? '▾' : '▸'}</span>
           </div>
