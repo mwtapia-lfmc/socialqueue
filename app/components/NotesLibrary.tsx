@@ -126,11 +126,25 @@ export default function NotesLibrary({ notes, missing, onImport, onDelete }: Pro
 
       {notes.length > 0 && (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            {books.map((b) => (
-              <button key={b.name} onClick={() => toggle(b.name)} aria-pressed={open.includes(b.name)}
-                className={`h-8 px-3 rounded-full text-sm font-medium border ${open.includes(b.name) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-600'}`}>📓 {b.name} <span className="opacity-70">{b.count}</span></button>
-            ))}
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' }}>
+            {books.map((b) => {
+              const on = open.includes(b.name)
+              const mine = notes.filter((n) => notebookOf(n) === b.name)
+              return (
+                <button key={b.name} onClick={() => toggle(b.name)} aria-pressed={on}
+                  className={`text-left rounded-2xl p-4 border transition flex flex-col gap-2 min-h-[120px] ${on ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white/90 border-gray-200 hover:border-indigo-300 hover:shadow-md'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-2xl leading-none">📓</span>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${on ? 'bg-white/25' : 'bg-gray-100 text-gray-700'}`}>{b.count}</span>
+                  </div>
+                  <span className="font-semibold text-[15px] leading-tight break-words">{b.name}</span>
+                  <span className={`text-[11px] leading-snug line-clamp-2 ${on ? 'text-white/80' : 'text-gray-500'}`}>{mine.slice(0, 2).map((n) => n.title).join(' · ')}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400">Click tiles to open them side by side.</span>
             <span className="flex-1" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search open notebooks…" className="w-full sm:w-60 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" />
           </div>
