@@ -153,7 +153,6 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const [promptText, setPromptText] = useState('')
   const [promptBusy, setPromptBusy] = useState(false)
   const [promptTrend, setPromptTrend] = useState('')
-  const [promptTag, setPromptTag] = useState('')
   const [promptSeries, setPromptSeries] = useState('')
   const [promptAngle, setPromptAngle] = useState('')
   const [useNotes, setUseNotes] = useState(true)
@@ -164,17 +163,15 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     try {
       const sid = promptSeries || draft.series_id || ''
       const ser = structure?.series.find((x) => x.id === sid)
-      const tg = promptTag ? tagOptions.find((t) => t.key === promptTag) : null
       const tr = trendList.find((t) => t.key === promptTrend)
       const r = await fetch('/api/writing-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         format: isLong ? 'longform' : 'note',
         series: ser ? { name: ser.name, description: ser.description } : null,
-        bucket: tg?.name || null,
-        tags: (draft.tags || []).filter((k) => k !== promptTag),
+        tags: draft.tags || [],
         trend: tr ? { topic: tr.topic, summary: tr.summary } : null,
         angle: promptAngle.trim() || null,
         previous: promptSeen.slice(-5),
-        notes: useNotes ? pickNotes(myNotes, [ser?.name, ser?.description, tg?.name, tr?.topic, promptAngle, ...(draft.tags || []), draft.title, draft.content.slice(0, 300)].filter(Boolean).join(' '), 6) : [],
+        notes: useNotes ? pickNotes(myNotes, [ser?.name, ser?.description, tr?.topic, promptAngle, ...(draft.tags || []), draft.title, draft.content.slice(0, 300)].filter(Boolean).join(' '), 6) : [],
       }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error)
@@ -498,12 +495,6 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                       {structure.series.map((x) => <option key={x.id} value={x.id}>{seriesEmoji(x)} {x.name}</option>)}
                     </select>
                   )}
-                  {tagOptions.length > 0 && (
-                    <select value={promptTag} onChange={(e) => setPromptTag(e.target.value)} className="h-8 bg-white border border-amber-200 rounded-lg px-2">
-                      <option value="">Any tag</option>
-                      {tagOptions.map((t) => <option key={t.key} value={t.key}>{t.emoji} {t.name}</option>)}
-                    </select>
-                  )}
                   {myNotes.length > 0 && <label className="flex items-center gap-1.5 text-amber-900"><input type="checkbox" checked={useNotes} onChange={(e) => setUseNotes(e.target.checked)} /> Use my notes ({myNotes.length})</label>}
                   <input value={promptAngle} onChange={(e) => setPromptAngle(e.target.value)} placeholder="Angle (optional)" className="h-8 flex-1 min-w-[8rem] px-2 bg-white border border-amber-200 rounded-lg" />
                 </div>
@@ -513,10 +504,9 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                   {promptText && <button type="button" onClick={() => {
                     const patch: Partial<typeof draft> = {}
                     if (promptSeries) patch.series_id = promptSeries
-                    if (promptTag && !(draft.tags || []).includes(promptTag)) patch.tags = [...(draft.tags || []), promptTag]
                     if (Object.keys(patch).length) update(patch)
                     textareaRef.current?.focus()
-                  }} className="text-xs px-3 py-1.5 rounded-md bg-white border border-amber-200 text-amber-900 hover:bg-amber-100">Apply series &amp; tag to this draft</button>}
+                  }} className="text-xs px-3 py-1.5 rounded-md bg-white border border-amber-200 text-amber-900 hover:bg-amber-100">Apply this series to the draft</button>}
                 </div>
               </div>
             )}
