@@ -269,7 +269,7 @@ export default function Home() {
   }
 
   const tagOptions = structure ? tagRegistry(structure.buckets, items.filter((i) => i.publication_id === structure.publication.id)) : []
-  const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea')
+  const drafts = items.filter((i) => i.status === 'draft' && !isPlaceholder(i))
   const scheduled = items.filter((i) => i.status === 'scheduled')
   const queue = items.filter((i) => i.status !== 'draft')
 

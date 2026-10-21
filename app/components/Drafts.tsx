@@ -33,7 +33,7 @@ export default function Drafts({ items, onEdit, onSchedule, onDelete }: Props) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${it.kind === 'blog' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                {it.kind === 'blog' ? 'BLOG' : 'POST'}
+                {it.kind === 'blog' ? 'LONGFORM' : it.publication_id ? 'POST / NOTE' : 'POST'}{it.stage === 'idea' ? ' · IDEA' : ''}
               </span>
               <p className="font-semibold mt-1.5 truncate">{it.title || it.content.split('\n')[0].slice(0, 70) || 'Untitled'}</p>
             </div>
