@@ -8,6 +8,7 @@ import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
 import PlatformPreviews, { type Identity } from './PlatformPreviews'
 import SubstackPreview from './SubstackPreview'
+import { SEED_TAGS, type StructureData } from '../lib/structure'
 import type { Connection } from './Accounts'
 
 export interface Item {
@@ -22,6 +23,16 @@ export interface Item {
   analysis: any
   overrides?: Record<string, string> | null
   accounts?: Record<string, string> | null
+  // Substack content structure (null/absent for ordinary social posts)
+  publication_id?: string | null
+  series_id?: string | null
+  bucket_id?: string | null
+  format?: 'note' | 'longform' | null
+  hook?: string | null
+  stage?: 'idea' | 'drafting' | null
+  planned_for?: string | null
+  source_item_id?: string | null
+  tags?: string[] | null
   status: 'draft' | 'scheduled' | 'published' | 'failed'
   published_at?: string | null
   publish_log?: Record<string, { ok: boolean; url?: string; error?: string }> | null
@@ -35,6 +46,7 @@ interface Props {
   userId: string
   accounts?: Partial<Record<Platform, Identity>>
   connections?: Connection[]
+  structure?: StructureData | null
   item: Item | null
   onSaved: (item: Item) => void
   onScheduled: () => void
@@ -61,7 +73,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -110,6 +122,12 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
         analysis: draft.analysis,
         overrides: draft.overrides || {},
         accounts: draft.accounts || {},
+        // structure fields only travel with items that belong to a publication, so ordinary posts save unchanged
+        ...(draft.publication_id ? {
+          publication_id: draft.publication_id, series_id: draft.series_id ?? null, bucket_id: draft.bucket_id ?? null,
+          format: draft.format ?? (draft.kind === 'blog' ? 'longform' : 'note'), hook: draft.hook || null, stage: draft.stage ?? 'drafting',
+          planned_for: draft.planned_for || null, source_item_id: draft.source_item_id ?? null, tags: draft.tags ?? [],
+        } : {}),
         updated_at: new Date().toISOString(),
         ...extra,
       }
@@ -119,8 +137,10 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
         : supabase.from('items').insert(payload).select().single()
       let { data, error } = await q
       if (!error) setSaveError(null)
-      if (error && /overrides|accounts/.test(error.message)) {
-        const { overrides: _o, accounts: _a, ...slim } = payload
+      const OPTIONAL = ['overrides', 'accounts', 'publication_id', 'series_id', 'bucket_id', 'format', 'hook', 'stage', 'planned_for', 'source_item_id', 'tags']
+      if (error && new RegExp(OPTIONAL.join('|')).test(error.message)) {
+        const slim: Record<string, unknown> = { ...payload }
+        for (const k of OPTIONAL) delete slim[k]
         setSaveError('per-platform edits / account choice not stored until the DB is updated')
         ;({ data, error } = await (id
           ? supabase.from('items').update(slim).eq('id', id).select().single()
@@ -300,6 +320,51 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               )}
             </div>
           </div>
+
+          {draft.publication_id && structure && (
+            <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-3 space-y-2.5">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-semibold text-[#c2410c]">Substack · {structure.publication.name}</span>
+                <label className="flex items-center gap-1 text-gray-600">Series
+                  <select value={draft.series_id || ''} onChange={(e) => update({ series_id: e.target.value || null })} className="h-7 bg-white border border-gray-200 rounded-md px-1.5">
+                    <option value="">None</option>{structure.series.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-gray-600">Bucket
+                  <select value={draft.bucket_id || ''} onChange={(e) => update({ bucket_id: e.target.value || null })} className="h-7 bg-white border border-gray-200 rounded-md px-1.5">
+                    <option value="">None</option>{structure.buckets.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                </label>
+                <div className="flex gap-0.5 p-0.5 bg-white border border-gray-200 rounded-md">
+                  {(['note', 'longform'] as const).map((f) => (
+                    <button key={f} type="button" onClick={() => update({ format: f, kind: f === 'longform' ? 'blog' : 'post' })}
+                      className={`px-2 py-1 rounded ${(draft.format ?? (draft.kind === 'blog' ? 'longform' : 'note')) === f ? 'bg-[#ff6719] text-white' : 'text-gray-600'}`}>{f === 'note' ? 'Note' : 'Longform'}</button>
+                  ))}
+                </div>
+                {draft.status === 'draft' && (
+                  <label className="flex items-center gap-1 text-gray-600">Status
+                    <select value={draft.stage ?? 'drafting'} onChange={(e) => update({ stage: e.target.value as 'idea' | 'drafting' })} className="h-7 bg-white border border-gray-200 rounded-md px-1.5">
+                      <option value="idea">Idea</option><option value="drafting">Drafting</option>
+                    </select>
+                  </label>
+                )}
+                <label className="flex items-center gap-1 text-gray-600">Planned
+                  <input type="date" value={draft.planned_for || ''} onChange={(e) => update({ planned_for: e.target.value || null })} className="h-7 bg-white border border-gray-200 rounded-md px-1.5" />
+                </label>
+              </div>
+              <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook — the line someone will screenshot"
+                className="w-full text-[15px] italic bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300" />
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                {(draft.tags || []).map((t) => (
+                  <button key={t} type="button" onClick={() => update({ tags: (draft.tags || []).filter((x) => x !== t) })} title="Remove tag" className="px-2 py-0.5 rounded-full bg-orange-200 text-orange-900 hover:bg-orange-300">#{t} ×</button>
+                ))}
+                {SEED_TAGS.filter((t) => !(draft.tags || []).includes(t)).map((t) => (
+                  <button key={t} type="button" onClick={() => update({ tags: [...(draft.tags || []), t] })} className="px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:border-orange-300 hover:text-orange-700">+ {t}</button>
+                ))}
+              </div>
+              {draft.source_item_id && <p className="text-[11px] text-gray-500">Repurposed from an earlier post.</p>}
+            </div>
+          )}
 
           {draft.kind === 'blog' && (
             <input

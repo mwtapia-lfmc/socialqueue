@@ -15,8 +15,10 @@ import Dashboard from './components/Dashboard'
 import BatchComposer from './components/BatchComposer'
 import Trends from './components/Trends'
 import Help from './components/Help'
+import Structure, { type StructureState, type NewCtx } from './components/Structure'
+import { SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
 
-type View = 'home' | 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
+type View = 'home' | 'compose' | 'batch' | 'structure' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -30,6 +32,8 @@ export default function Home() {
   const [view, setView] = useState<View>('home')
   const [editing, setEditing] = useState<Item | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [structure, setStructure] = useState<StructureData | null>(null)
+  const [structureState, setStructureState] = useState<StructureState>('loading')
   const [collapsed, setCollapsed] = useState(false)
   useEffect(() => { try { setCollapsed(localStorage.getItem('sq:sidebar') === 'collapsed') } catch {} }, [])
   const toggleSidebar = () => setCollapsed((c) => { try { localStorage.setItem('sq:sidebar', c ? 'open' : 'collapsed') } catch {}; return !c })
@@ -65,6 +69,18 @@ export default function Home() {
     setProfilesLoading(false)
   }, [])
 
+  const loadStructure = useCallback(async (userId: string) => {
+    const pubs = await supabase.from('publications').select('*').eq('user_id', userId).order('created_at').limit(1)
+    if (pubs.error) { setStructureState(/could not find|does not exist|schema cache|relation/i.test(pubs.error.message) ? 'missing' : 'loading'); return }
+    const pub = pubs.data?.[0]
+    if (!pub) { setStructure(null); setStructureState('empty'); return }
+    const [se, bu] = await Promise.all([
+      supabase.from('series').select('*').eq('publication_id', pub.id).order('sort_order'),
+      supabase.from('buckets').select('*').eq('publication_id', pub.id).order('sort_order'),
+    ])
+    setStructure({ publication: pub, series: se.data || [], buckets: bu.data || [] }); setStructureState('ready')
+  }, [])
+
   const loadTrends = useCallback(async (userId: string) => {
     setTrendsLoading(true)
     const r = await authedFetch('/api/trends')
@@ -80,7 +96,7 @@ export default function Home() {
     if (connectErr) { setView('accounts'); setTimeout(() => alert('Could not connect: ' + decodeURIComponent(connectErr.replace(/\+/g, ' '))), 50) }
     if (params.get('connected')) setView('accounts')
     if (desc || connectErr || params.get('connected')) window.history.replaceState({}, '', window.location.pathname)
-    const boot = (u: any) => { hydrate(u.id); loadItems(u.id); loadConnections(u.id); loadProfiles(u.id); loadTrends(u.id) }
+    const boot = (u: any) => { hydrate(u.id); loadItems(u.id); loadConnections(u.id); loadProfiles(u.id); loadTrends(u.id); loadStructure(u.id) }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) boot(session.user)
@@ -94,7 +110,7 @@ export default function Home() {
       if (!session?.user) { setItems([]); setConnections([]); setProfiles(null) }
     })
     return () => sub.subscription.unsubscribe()
-  }, [hydrate, loadItems, loadConnections, loadProfiles, loadTrends])
+  }, [hydrate, loadItems, loadConnections, loadProfiles, loadTrends, loadStructure])
 
   const signIn = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
   const signOut = () => supabase.auth.signOut()
@@ -131,7 +147,67 @@ export default function Home() {
     setEditing({ id: '', kind: 'post', title: null, content: text, tone: 'casual', platforms: Object.fromEntries(['threads', 'twitter', 'bluesky', 'linkedin'].map((p) => [p, !!connections.find((c) => c.platform === p)])), hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '' } as unknown as Item)
     setView('compose')
   }
-  const drafts = items.filter((i) => i.status === 'draft')
+  // ---- Substack structure ----
+  const noPlatforms = { threads: false, twitter: false, bluesky: false, linkedin: false }
+  const newStructureItem = (format: Format, ctx: NewCtx & Partial<Item> = {}): Item => ({
+    id: '', kind: format === 'longform' ? 'blog' : 'post', title: null, content: '', tone: 'casual', platforms: noPlatforms, hashtags: [], image_urls: [], analysis: null,
+    status: 'draft', schedule_date: null, schedule_time: null, created_at: '', updated_at: '',
+    publication_id: structure?.publication.id ?? null, series_id: ctx.seriesId ?? null, bucket_id: ctx.bucketId ?? null, format, hook: '', stage: 'drafting', planned_for: ctx.plannedFor ?? null, tags: [], source_item_id: null,
+    ...(({ seriesId, bucketId, plannedFor, ...rest }) => rest)(ctx),
+  } as Item)
+
+  const seedStructure = async () => {
+    const uid = user.id
+    const pub = await supabase.from('publications').insert({ user_id: uid, name: 'Media Literacy', platform: 'substack', year_theme: 'Media Literacy, soup to nuts' }).select().single()
+    if (pub.error) return alert('Setup failed: ' + pub.error.message)
+    const se = await supabase.from('series').insert(SEED_SERIES.map((x, i) => ({ user_id: uid, publication_id: pub.data.id, sort_order: i, ...x }))).select()
+    const bu = await supabase.from('buckets').insert(SEED_BUCKETS.map((x, i) => ({ user_id: uid, publication_id: pub.data.id, sort_order: i, ...x }))).select()
+    if (se.error || bu.error) return alert('Setup failed: ' + (se.error || bu.error)!.message)
+    const byKey = Object.fromEntries((se.data || []).map((x: any) => [x.key, x.id]))
+    const ideas = await supabase.from('items').insert(SEED_IDEAS.map((i) => ({
+      user_id: uid, kind: 'blog', format: 'longform', title: i.title, content: '', tone: 'casual', platforms: noPlatforms, hashtags: [], image_urls: [],
+      status: 'draft', stage: 'idea', publication_id: pub.data.id, series_id: i.series ? byKey[i.series] : null, tags: i.tags || [],
+    })))
+    if (ideas.error) return alert('Structure created, but the idea posts failed: ' + ideas.error.message)
+    await Promise.all([loadStructure(uid), loadItems(uid)])
+  }
+
+  const renameStructure = async (table: 'series' | 'buckets', id: string, patch: { name?: string; description?: string }) => {
+    const { error } = await supabase.from(table).update(patch).eq('id', id)
+    if (error) return alert('Rename failed: ' + error.message)
+    setStructure((st) => st && ({ ...st, [table]: (st[table] as any[]).map((x) => (x.id === id ? { ...x, ...patch } : x)) }))
+  }
+
+  const repurposeStructure = (src: Item) => {
+    const toFormat: Format = src.format === 'longform' ? 'note' : 'longform'
+    const firstPara = (src.content || '').split(/\n\s*\n/)[0] || ''
+    const bucket = structure?.buckets.find((b) => b.key === 'repurposed')
+    edit({
+      ...newStructureItem(toFormat, { seriesId: src.series_id, bucketId: bucket?.id ?? src.bucket_id }),
+      title: toFormat === 'longform' ? src.title : null,
+      content: toFormat === 'note' ? (src.hook || firstPara).slice(0, 280) : src.content,
+      hook: src.hook || '', tags: src.tags || [], source_item_id: src.id,
+    } as Item)
+  }
+
+  const markPublished = (it: Item) => setStatus(it, { status: 'published', published_at: new Date().toISOString() })
+
+  const planTwoWeeks = async () => {
+    if (!structure) return
+    const bs = structure.buckets
+    const today = new Date()
+    const day = (n: number) => { const d = new Date(today); d.setDate(today.getDate() + n); return ymd(d) }
+    const base = { user_id: user.id, tone: 'casual', platforms: noPlatforms, hashtags: [], image_urls: [], status: 'draft', stage: 'idea', publication_id: structure.publication.id, tags: [] }
+    const rows = [
+      ...Array.from({ length: 14 }, (_, i) => ({ ...base, kind: 'post', format: 'note', title: `${bs[i % bs.length]?.name || 'Note'} note`, content: '', bucket_id: bs[i % bs.length]?.id ?? null, planned_for: day(i) })),
+      ...[2, 9].map((n, i) => ({ ...base, kind: 'blog', format: 'longform', title: 'Longform idea', content: '', bucket_id: bs[(i + 1) % Math.max(1, bs.length)]?.id ?? null, planned_for: day(n) })),
+    ]
+    const { error } = await supabase.from('items').insert(rows)
+    if (error) return alert('Planning failed: ' + error.message)
+    await loadItems(user.id)
+  }
+
+  const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea')
   const scheduled = items.filter((i) => i.status === 'scheduled')
   const queue = items.filter((i) => i.status !== 'draft')
 
@@ -139,6 +215,7 @@ export default function Home() {
     { key: 'home', label: '🏠 Home' },
     { key: 'compose', label: '✍️ Compose' },
     { key: 'batch', label: '⚡ Batch' },
+    { key: 'structure', label: '🗂 Structure' },
     { key: 'drafts', label: '📝 Drafts', count: drafts.length },
     { key: 'calendar', label: '📅 Calendar' },
     { key: 'queue', label: '🚀 Queue', count: scheduled.length },
@@ -230,13 +307,13 @@ export default function Home() {
               <>
                 {/* Mobile bottom nav */}
                 <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-                  <div className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+                  <div className="flex overflow-x-auto sq-scroll">
                     {tabs.map((t) => {
                       const [icon, ...rest] = t.label.split(' ')
                       const active = view === t.key
                       return (
                         <button key={t.key} onClick={() => go(t.key)}
-                          className={`relative flex flex-col items-center gap-0.5 py-2 text-[10px] ${active ? 'text-indigo-600 font-semibold' : 'text-gray-500'}`}>
+                          className={`relative shrink-0 w-[68px] flex flex-col items-center gap-0.5 py-2 text-[10px] ${active ? 'text-indigo-600 font-semibold' : 'text-gray-500'}`}>
                           <span className="text-lg leading-none">{icon}</span>
                           <span className="truncate max-w-full px-0.5">{rest.join(' ')}</span>
                           {t.count ? <span className="absolute top-1 right-1/2 translate-x-4 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] flex items-center justify-center">{t.count}</span> : null}
@@ -256,8 +333,10 @@ export default function Home() {
 
                 {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
                 {view === 'compose' && (
-                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
+                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure}
+                  onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onPlan={planTwoWeeks} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
                 {view === 'calendar' && <Calendar items={items.filter((i) => i.schedule_date)} onSelect={edit}

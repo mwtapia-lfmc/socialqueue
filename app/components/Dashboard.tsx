@@ -23,7 +23,7 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
   const [quick, setQuick] = useState('')
   const today = new Date()
   const todayKey = ymd(today)
-  const drafts = items.filter((i) => i.status === 'draft')
+  const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea')
   const scheduled = items.filter((i) => i.status === 'scheduled').sort((a, b) => `${a.schedule_date}${a.schedule_time}`.localeCompare(`${b.schedule_date}${b.schedule_time}`))
   const upNext = scheduled.filter((i) => (i.schedule_date || '') >= todayKey).slice(0, 5)
   const failed = items.filter((i) => i.status === 'failed')

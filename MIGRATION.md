@@ -108,3 +108,57 @@ ALTER TABLE connections DROP CONSTRAINT IF EXISTS connections_user_id_platform_k
 ALTER TABLE connections ADD CONSTRAINT connections_user_platform_account_key UNIQUE (user_id, platform, account_id);
 ALTER TABLE items ADD COLUMN IF NOT EXISTS accounts JSONB NOT NULL DEFAULT '{}';
 ```
+
+## 6. Substack content structure (publication → series → buckets → posts)
+
+Adds the structure tables and links `items` to them. Run once.
+
+```sql
+CREATE TABLE publications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'substack',
+  year_theme TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE series (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  publication_id UUID NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (publication_id, key)
+);
+CREATE TABLE buckets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  publication_id UUID NOT NULL REFERENCES publications(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  sort_order INT NOT NULL DEFAULT 0,
+  UNIQUE (publication_id, key)
+);
+ALTER TABLE publications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE series ENABLE ROW LEVEL SECURITY;
+ALTER TABLE buckets ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "own publications" ON publications FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "own series" ON series FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "own buckets" ON buckets FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+ALTER TABLE items
+  ADD COLUMN IF NOT EXISTS publication_id UUID REFERENCES publications(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS series_id UUID REFERENCES series(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS bucket_id UUID REFERENCES buckets(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS format TEXT,
+  ADD COLUMN IF NOT EXISTS hook TEXT,
+  ADD COLUMN IF NOT EXISTS stage TEXT,
+  ADD COLUMN IF NOT EXISTS planned_for DATE,
+  ADD COLUMN IF NOT EXISTS source_item_id UUID REFERENCES items(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+```
