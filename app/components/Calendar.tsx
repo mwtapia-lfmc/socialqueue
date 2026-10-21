@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { PLATFORM_META, formatTime, parseYmd, type Platform } from '../lib/text'
 import type { Item } from './UnifiedComposer'
-import { blockStart, dayIndex, weekOfYear } from '../lib/structure'
+import { blockStart, weekOfYear } from '../lib/structure'
 
 interface Props {
   items: Item[]
@@ -97,11 +97,10 @@ export default function Calendar({ items, onSelect, onMove, onCreate }: Props) {
         <div className="grid grid-cols-[48px_repeat(7,minmax(0,1fr))] gap-1.5 mb-1.5"><div />{head.map((d, i) => <div key={i} className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wide py-1">{d}</div>)}</div>
         <div className="space-y-1.5">
           {rows.map((rowStart) => {
-            const idx = Math.floor(dayIndex(rowStart) / 7) + 1
             return (
               <div key={rowStart.toISOString()} className="grid grid-cols-[48px_repeat(7,minmax(0,1fr))] gap-1.5">
                 <button onClick={() => { setCursor(rowStart); setMode('week') }} title="Open this week" className="rounded-lg bg-gray-100 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 text-[10px] font-bold leading-tight flex flex-col items-center justify-center">
-                  <span className="uppercase tracking-wide opacity-70">Wk</span><span className="text-sm">{weekOfYear(rowStart)}{idx > 52 ? '+' : ''}</span>
+                  <span className="uppercase tracking-wide opacity-70">Wk</span><span className="text-sm">{weekOfYear(rowStart)}</span>
                 </button>
                 {Array.from({ length: 7 }, (_, i) => addDays(rowStart, i)).map((d) => {
                   const key = ymd(d); const inMonth = d.getMonth() === m; const isToday = key === todayKey

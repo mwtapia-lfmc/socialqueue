@@ -151,18 +151,24 @@ export function tagRegistry(buckets: Bucket[], items: Item[]): TagInfo[] {
   }).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 }
 
-// ---- weeks of the year: Week 1 starts Jan 1, Week 52 ends Dec 31 (leftover day(s) fold into 52) ----
+// ---- weeks run Monday–Sunday; Week 1 is the week containing Jan 1 ----
 const DAY = 86400000
 const mid = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
-export const dayIndex = (d: Date) => Math.round((mid(d).getTime() - new Date(d.getFullYear(), 0, 1).getTime()) / DAY)
-export const weekOfYear = (d: Date) => Math.min(52, Math.floor(dayIndex(d) / 7) + 1)
-export const blockStart = (d: Date) => { const y = d.getFullYear(); const x = new Date(y, 0, 1); x.setDate(1 + Math.floor(dayIndex(d) / 7) * 7); return x }
+const addD = (d: Date, n: number) => { const x = new Date(d); x.setDate(d.getDate() + n); return x }
+export const mondayOf = (d: Date) => { const x = mid(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x }
+const yearStartMonday = (y: number) => mondayOf(new Date(y, 0, 1))
+export function weekInfo(d: Date): { year: number; week: number } {
+  const m = mondayOf(d)
+  if (addD(m, 6) >= new Date(m.getFullYear() + 1, 0, 1)) return { year: m.getFullYear() + 1, week: 1 }
+  return { year: m.getFullYear(), week: Math.round((m.getTime() - yearStartMonday(m.getFullYear()).getTime()) / DAY / 7) + 1 }
+}
+export const weekOfYear = (d: Date) => weekInfo(d).week
+export const weekYear = (d: Date) => weekInfo(d).year
+export const blockStart = mondayOf
+export const weeksInYear = (y: number) => Math.round((mondayOf(new Date(y + 1, 0, 1)).getTime() - yearStartMonday(y).getTime()) / DAY / 7)
 export function weekDates(year: number, n: number): string[] {
-  const start = new Date(year, 0, 1); start.setDate(1 + (n - 1) * 7)
-  const end = n >= 52 ? new Date(year, 11, 31) : (() => { const e = new Date(start); e.setDate(start.getDate() + 6); return e })()
-  const out: string[] = []
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) out.push(ymd(d))
-  return out
+  const start = addD(yearStartMonday(year), (n - 1) * 7)
+  return Array.from({ length: 7 }, (_, i) => ymd(addD(start, i)))
 }
 export const shortDate = (k: string) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }
 

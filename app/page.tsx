@@ -113,6 +113,15 @@ export default function Home() {
     return () => sub.subscription.unsubscribe()
   }, [hydrate, loadItems, loadConnections, loadProfiles, loadTrends, loadStructure])
 
+  // keep the planner/queue current: items the scheduler publishes appear without a reload
+  useEffect(() => {
+    if (!user) return
+    const refresh = () => { if (document.visibilityState === 'visible') loadItems(user.id) }
+    const t = setInterval(refresh, 60_000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', refresh) }
+  }, [user, loadItems])
+
   const signIn = () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
   const signOut = () => supabase.auth.signOut()
 
@@ -208,6 +217,12 @@ export default function Home() {
   }
 
   const placeItem = async (it: Item, date: string | null, time?: string | null) => {
+    if (it.status === 'scheduled' && it.schedule_date) {
+      if (!date) return
+      const { data, error } = await supabase.from('items').update({ schedule_date: date, schedule_time: time ?? it.schedule_time, updated_at: new Date().toISOString() }).eq('id', it.id).select().single()
+      if (error) return alert('Could not move it: ' + error.message)
+      return upsertLocal(data as Item)
+    }
     const patch = { planned_for: date, planned_time: date ? (time ?? it.planned_time ?? '09:00') : null } as Partial<Item>
     const { data, error } = await supabase.from('items').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', it.id).select().single()
     if (!error) return upsertLocal(data as Item)
@@ -395,7 +410,7 @@ export default function Home() {
 
                 {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
                 {view === 'compose' && (
-                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
                 )}
                 {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji} onNewSeries={createSeries}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} onCadence={setCadence} />}

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { formatTime, timeAgo } from '../lib/text'
-import { cadenceOf, EMOJI_CHOICES, FORMAT_LABEL, STAGES, STAGE_STYLE, STRUCTURE_SQL, isPlaceholder, itemTags, seriesEmoji, shortDate, stageOf, tagRegistry, weekDates, weekOfYear, ymd, type Format, type Series, type Stage, type StructureData, type TagInfo } from '../lib/structure'
+import { cadenceOf, EMOJI_CHOICES, FORMAT_LABEL, STAGES, STAGE_STYLE, STRUCTURE_SQL, isPlaceholder, itemTags, seriesEmoji, shortDate, stageOf, tagRegistry, weekDates, weekOfYear, weekYear, weeksInYear, ymd, type Format, type Series, type Stage, type StructureData, type TagInfo } from '../lib/structure'
 import type { Item } from './UnifiedComposer'
 
 export type StructureState = 'loading' | 'missing' | 'empty' | 'ready'
@@ -31,7 +31,7 @@ interface Props {
 
 type Sel = { kind: 'all' } | { kind: 'series'; id: string } | { kind: 'tag'; key: string }
 
-const fmtOf = (i: Item): Format => (i.format as Format) || 'note'
+const fmtOf = (i: Item): Format => (i.format as Format) || (i.kind === 'blog' ? 'longform' : 'note')
 const parse = (k: string) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d) }
 const mondayOf = (d: Date) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x }
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(d.getDate() + n); return x }
@@ -116,7 +116,7 @@ export default function Structure(p: Props) {
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const mine = useMemo(() => (data ? items.filter((i) => i.publication_id === data.publication.id && !isPlaceholder(i)) : []), [items, data])
+  const mine = useMemo(() => (data ? items.filter((i) => (i.publication_id === data.publication.id || !i.publication_id) && !isPlaceholder(i)) : []), [items, data])
   const placeholders = useMemo(() => (data ? items.filter((i) => i.publication_id === data.publication.id && isPlaceholder(i)) : []), [items, data])
   const toggleWeek = (n: number) => setExpanded((cur) => { const x = new Set(cur); x.has(n) ? x.delete(n) : x.add(n); return x })
   const makeSeries = async () => {
@@ -201,12 +201,13 @@ export default function Structure(p: Props) {
 
   // ---------------- PLANNER ----------------
   if (mode === 'planner') {
-    const year = new Date().getFullYear()
-    const placedDate = (i: Item) => i.planned_for || (stageOf(i) === 'published' && i.published_at ? ymd(new Date(i.published_at)) : null)
-    const inCell = (day: string, f: Format) => mine.filter((i) => placedDate(i) === day && fmtOf(i) === f).sort((a, b) => (a.planned_time || '99').localeCompare(b.planned_time || '99'))
+    const year = weekYear(new Date())
+    const lastWeek = weeksInYear(year)
+    const placedDate = (i: Item) => i.planned_for || (stageOf(i) === 'published' && i.published_at ? ymd(new Date(i.published_at)) : null) || (stageOf(i) === 'scheduled' ? i.schedule_date || null : null)
+    const inCell = (day: string, f: Format) => mine.filter((i) => placedDate(i) === day && fmtOf(i) === f).sort((a, b) => (a.planned_time || a.schedule_time || '99').localeCompare(b.planned_time || b.schedule_time || '99'))
     const countIn = (days: string[], f: Format) => days.reduce((n, d) => n + inCell(d, f).length, 0)
 
-    const repo = mine.filter((i) => !i.planned_for && stageOf(i) !== 'published' && fmtOf(i) === repoFormat
+    const repo = mine.filter((i) => !placedDate(i) && stageOf(i) !== 'published' && fmtOf(i) === repoFormat
       && (!repoQuery.trim() || `${label(i)} ${(i.tags || []).join(' ')}`.toLowerCase().includes(repoQuery.trim().toLowerCase())))
     type Group = { key: string; kind: 'series' | 'tag'; ref: string; emoji: string; name: string; logo?: string | null; list: Item[] }
     const seriesGroups: Group[] = [
@@ -223,7 +224,7 @@ export default function Structure(p: Props) {
       const it = dragged; setDragId(null); setOverKey(null)
       if (!it || stageOf(it) === 'published') return
       if (day && cellFormat && fmtOf(it) !== cellFormat) return
-      if (day === null && !it.planned_for) return
+      if (day === null && (!it.planned_for || stageOf(it) === 'scheduled')) return
       p.onPlace(it, day)
     }
     const dragProps = (it: Item) => stageOf(it) === 'published' ? {} : {
@@ -283,16 +284,16 @@ export default function Structure(p: Props) {
     const PlacedCard = ({ it }: { it: Item }) => {
       const st = stageOf(it)
       return (
-        <div {...dragProps(it)} className={`group relative rounded-lg border px-2 py-1.5 text-left ${st === 'published' ? 'border-emerald-200 bg-emerald-50' : 'border-orange-200 bg-orange-50 cursor-grab active:cursor-grabbing'} ${dragId === it.id ? 'opacity-40' : ''}`}>
+        <div {...dragProps(it)} className={`group relative rounded-lg border px-2 py-1.5 text-left ${st === 'published' ? 'border-emerald-200 bg-emerald-50' : st === 'scheduled' ? 'border-blue-200 bg-blue-50 cursor-grab active:cursor-grabbing' : 'border-orange-200 bg-orange-50 cursor-grab active:cursor-grabbing'} ${dragId === it.id ? 'opacity-40' : ''}`}>
           {st !== 'published'
-            ? <label className="flex items-center gap-1 text-[11px] font-semibold text-orange-900 mb-0.5 cursor-pointer" title="Set the time">🕘<input type="time" value={(it.planned_time || '').slice(0, 5)} onChange={(e) => e.target.value && p.onPlace(it, it.planned_for || null, e.target.value)} className="bg-transparent w-[96px] text-[11px] font-semibold" /></label>
+            ? <label className={`flex items-center gap-1 text-[11px] font-semibold mb-0.5 cursor-pointer ${st === 'scheduled' ? 'text-blue-900' : 'text-orange-900'}`} title="Set the time">{st === 'scheduled' ? '🚀' : '🕘'}<input type="time" value={(it.planned_time || it.schedule_time || '').slice(0, 5)} onChange={(e) => e.target.value && p.onPlace(it, placedDate(it), e.target.value)} className="bg-transparent w-[96px] text-[11px] font-semibold" /></label>
             : it.published_at && <span className="block text-[11px] font-semibold text-emerald-800 mb-0.5">🕘 {new Date(it.published_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
           <button onClick={() => p.onOpen(it)} className="block w-full text-left" title="Click to open and edit">
             <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full mb-0.5 ${STAGE_STYLE[st]}`}>{st}</span>
             <span className="block text-[12px] leading-snug line-clamp-3 hover:text-indigo-700">{label(it)}</span>
             {nameOf(series, it.series_id) && <span className="block text-[10px] text-orange-800/70 mt-0.5 truncate">{nameOf(series, it.series_id)}</span>}
           </button>
-          {st !== 'published' && <button onClick={() => p.onPlace(it, null)} title="Back to repository" className="absolute top-1 right-1 h-4 w-4 rounded-full bg-white border border-gray-200 text-gray-400 text-[10px] leading-none opacity-0 group-hover:opacity-100 hover:text-red-600">×</button>}
+          {st === 'idea' || st === 'drafting' ? <button onClick={() => p.onPlace(it, null)} title="Back to repository" className="absolute top-1 right-1 h-4 w-4 rounded-full bg-white border border-gray-200 text-gray-400 text-[10px] leading-none opacity-0 group-hover:opacity-100 hover:text-red-600">×</button> : null}
         </div>
       )
     }
@@ -307,8 +308,8 @@ export default function Structure(p: Props) {
         <div onDragOver={(e) => { if (canDrop) { e.preventDefault(); setOverKey(key) } }} onDragLeave={() => setOverKey((k) => (k === key ? null : k))} onDrop={(e) => { e.preventDefault(); drop(day, f) }}
           className={`group/cell rounded-xl p-1 min-h-[44px] space-y-1.5 transition ${over ? 'bg-orange-100 ring-2 ring-orange-400' : canDrop ? 'border border-dashed border-orange-300 bg-orange-50/40' : day === todayKey ? 'bg-indigo-50/40' : ''}`}>
           {list.map((it) => <PlacedCard key={it.id} it={it} />)}
-          {list.length === 0 && !dragged && (
-            <button onClick={() => p.onNew(f, { plannedFor: day, seriesId: openSeriesId })} className="w-full min-h-[36px] rounded-lg text-[11px] text-transparent group-hover/cell:text-orange-600 hover:bg-orange-50 transition" aria-label={`New ${FORMAT_LABEL[f]} on ${day}`}>+ new</button>
+          {!dragged && (
+            <button onClick={() => p.onNew(f, { plannedFor: day, seriesId: openSeriesId })} className="block w-full text-left px-1 text-[10px] text-gray-400 hover:text-orange-600 transition" aria-label={`Add a ${FORMAT_LABEL[f]} on ${day}`}>+ add</button>
           )}
         </div>
       )
@@ -357,11 +358,11 @@ export default function Structure(p: Props) {
           {/* ---------- weeks: one tile each, current week first ---------- */}
           <section className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-3 px-1">
-              <div className="mr-auto"><h3 className="text-lg font-bold">{year} · Weeks {showPast ? 1 : todayWeek}–52</h3><p className="text-[11px] text-gray-500">Week 1 starts Jan 1 · Week 52 ends Dec 31. Click a week to open or close it. Drag a title onto a day.</p></div>
+              <div className="mr-auto"><h3 className="text-lg font-bold">{year} · Weeks {showPast ? 1 : todayWeek}–{lastWeek}</h3><p className="text-[11px] text-gray-500">Weeks run Monday to Sunday; Week 1 is the week with Jan 1. Click a week to open or close it. Drag a title onto a day.</p></div>
               {todayWeek > 1 && <button onClick={() => setShowPast((v) => !v)} className="text-xs px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200">{showPast ? 'Hide earlier weeks' : `Show earlier weeks (${todayWeek - 1})`}</button>}
             </div>
 
-            {Array.from({ length: 52 - (showPast ? 1 : todayWeek) + 1 }, (_, i) => (showPast ? 1 : todayWeek) + i).map((n) => {
+            {Array.from({ length: lastWeek - (showPast ? 1 : todayWeek) + 1 }, (_, i) => (showPast ? 1 : todayWeek) + i).map((n) => {
               const days = weekDates(year, n)
               const open = expanded.has(n)
               const isNow = n === todayWeek
@@ -399,7 +400,7 @@ export default function Structure(p: Props) {
                 </div>
               )
             })}
-            <p className="text-[11px] text-gray-400 px-1">One tile per week. Drag a card to another day to change its publish day, or from the repository onto a day. Hover a blank day for + new. Set a time on any card. Everything here also shows on the Calendar.</p>
+            <p className="text-[11px] text-gray-400 px-1">One tile per week. Drag a card to another day to change its publish day, or from the repository onto a day. Use + add under any day to start something there. Set a time on any card. Everything here also shows on the Calendar.</p>
           </section>
         </div>
       </div>
