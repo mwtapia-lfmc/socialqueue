@@ -178,6 +178,13 @@ export default function Home() {
     setStructure((st) => st && ({ ...st, [table]: (st[table] as any[]).map((x) => (x.id === id ? { ...x, ...patch } : x)) }))
   }
 
+  const renamePublication = async (patch: { name?: string; year_theme?: string }) => {
+    if (!structure) return
+    const { error } = await supabase.from('publications').update(patch).eq('id', structure.publication.id)
+    if (error) return alert('Rename failed: ' + error.message)
+    setStructure({ ...structure, publication: { ...structure.publication, ...patch } })
+  }
+
   const repurposeStructure = (src: Item) => {
     const toFormat: Format = src.format === 'longform' ? 'note' : 'longform'
     const firstPara = (src.content || '').split(/\n\s*\n/)[0] || ''
@@ -335,7 +342,7 @@ export default function Home() {
                 {view === 'compose' && (
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
-                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure}
+                {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onPlan={planTwoWeeks} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}

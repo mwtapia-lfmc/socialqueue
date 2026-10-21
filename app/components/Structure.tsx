@@ -15,6 +15,7 @@ interface Props {
   onSeed: () => Promise<void>
   onRecheck: () => void
   onRename: (table: 'series' | 'buckets', id: string, patch: { name?: string; description?: string }) => Promise<void>
+  onRenamePublication: (patch: { name?: string; year_theme?: string }) => Promise<void>
   onNew: (format: Format, ctx: NewCtx) => void
   onOpen: (item: Item) => void
   onRepurpose: (item: Item) => void
@@ -170,7 +171,7 @@ export default function Structure(p: Props) {
   return (
     <div className="grid lg:grid-cols-[260px_1fr] gap-6 sq-fade-in">
       <nav className="sq-card p-3 self-start lg:sticky lg:top-6 space-y-1">
-        <div className="px-3 pt-1 pb-2"><p className="text-[11px] font-semibold uppercase tracking-wide text-[#ff6719]">Substack</p><p className="font-bold leading-tight">{publication.name}</p>{publication.year_theme && <p className="text-[11px] text-gray-500">{publication.year_theme}</p>}</div>
+        <div className="px-3 pt-1 pb-2"><p className="text-[11px] font-semibold uppercase tracking-wide text-[#ff6719]">Substack</p><Inline value={publication.name} onSave={(name) => p.onRenamePublication({ name })} className="font-bold leading-tight block w-full" /><Inline value={publication.year_theme || ''} placeholder="Add a theme" onSave={(year_theme) => p.onRenamePublication({ year_theme })} className="text-[11px] text-gray-500 block w-full" /></div>
         {navBtn({ kind: 'week' }, 'This week', `${weekNotes.length}/${CADENCE.note} Notes · ${weekLong.length}/${CADENCE.longform} Longform`)}
         {navBtn({ kind: 'all' }, 'All posts', countText(mine))}
         <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Series</p>
