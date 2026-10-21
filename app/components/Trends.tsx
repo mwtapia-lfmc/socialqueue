@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { timeAgo } from '../lib/text'
-import type { TrendSource, Trend } from '../api/trends/route'
+import type { TrendSource, Trend, Region } from '../api/trends/route'
 import type { Profile } from '../api/profiles/route'
 
-interface Props { sources: TrendSource[] | null; note: string; loading: boolean; onRefresh: () => void; profiles: Profile[] | null; onWrite: (text: string) => void }
+interface Props { regions: Region[]; onRegion: (r: Region) => void; sources: TrendSource[] | null; note: string; loading: boolean; onRefresh: () => void; profiles: Profile[] | null; onWrite: (text: string) => void }
 
 const n = (v?: number) => (v == null ? '' : v >= 1_000_000 ? `${(v / 1e6).toFixed(1)}M` : v >= 10_000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))
 const ORDER_KEY = 'sq:trendOrder'
 
-export default function Trends({ sources, note, loading, onRefresh, profiles, onWrite }: Props) {
+export default function Trends({ regions, onRegion, sources, note, loading, onRefresh, profiles, onWrite }: Props) {
   const [order, setOrder] = useState<string[]>([])
   const [dragKey, setDragKey] = useState<string | null>(null)
   const [over, setOver] = useState<string | null>(null)
@@ -39,6 +39,13 @@ export default function Trends({ sources, note, loading, onRefresh, profiles, on
 
   return (
     <div className="space-y-5 sq-fade-in">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium text-gray-600 mr-1">Show trends for</span>
+        {([['la', '🌴 LA'], ['us', '🇺🇸 USA'], ['world', '🌍 World']] as [Region, string][]).map(([k, label]) => (
+          <button key={k} onClick={() => onRegion(k)} aria-pressed={regions.includes(k)}
+            className={`h-8 px-3 rounded-full text-sm font-medium border ${regions.includes(k) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500'}`}>{label}</button>
+        ))}
+      </div>
       <div className="flex items-center gap-3 flex-wrap">
         <p className="text-sm text-gray-600 max-w-3xl">{note}</p>
         <span className="flex-1" />

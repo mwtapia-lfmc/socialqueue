@@ -13,7 +13,7 @@ import ScheduledPosts from './components/ScheduledPosts'
 import Accounts, { type Connection } from './components/Accounts'
 import Profiles from './components/Profiles'
 import type { Profile } from './api/profiles/route'
-import type { TrendSource } from './api/trends/route'
+import type { TrendSource, Region } from './api/trends/route'
 import Dashboard from './components/Dashboard'
 import BatchComposer from './components/BatchComposer'
 import Trends from './components/Trends'
@@ -33,6 +33,9 @@ export default function Home() {
   const [profilesLoading, setProfilesLoading] = useState(false)
   const [trends, setTrends] = useState<{ sources: TrendSource[]; note: string } | null>(null)
   const [trendsLoading, setTrendsLoading] = useState(false)
+  const [regions, setRegions] = useState<Region[]>(['la', 'us', 'world'])
+  useEffect(() => { try { const r = JSON.parse(localStorage.getItem('sq:trendRegions') || 'null'); if (Array.isArray(r)) setRegions(r) } catch {} }, [])
+  const toggleRegion = (rg: Region) => setRegions((cur) => { const nx = cur.includes(rg) ? cur.filter((x) => x !== rg) : [...cur, rg]; try { localStorage.setItem('sq:trendRegions', JSON.stringify(nx)) } catch {}; return nx })
   const [view, setView] = useState<View>('home')
   const [editing, setEditing] = useState<Item | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
@@ -422,6 +425,12 @@ export default function Home() {
               </div>
             ) : (
               <>
+                {view !== 'compose' && (
+                  <button onClick={() => { setEditing(null); go('compose') }} aria-label="New post" title="New post"
+                    className="sq-btn-primary fixed top-4 right-4 z-30 h-14 w-14 md:w-auto md:px-6 rounded-full text-4xl md:text-lg font-bold leading-none flex items-center justify-center gap-2 shadow-xl">
+                    <span className="-mt-1 md:mt-0 md:text-2xl">＋</span><span className="hidden md:inline text-base font-semibold">New</span>
+                  </button>
+                )}
                 {/* Mobile bottom nav */}
                 <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
                   <div className="flex overflow-x-auto sq-scroll">
@@ -448,7 +457,7 @@ export default function Home() {
                   </button>
                 )}
 
-                {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
+                {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources.filter((x) => !x.region || regions.includes(x.region)) ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
                 {view === 'compose' && (
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
                 )}
@@ -463,7 +472,7 @@ export default function Home() {
                   onCreate={(date, time) => { setEditing({ id: '', kind: 'post', title: null, content: '', tone: 'casual', platforms: Object.fromEntries(['threads', 'twitter', 'bluesky', 'linkedin'].map((p) => [p, !!connections.find((c) => c.platform === p)])), hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: date, schedule_time: time, created_at: '', updated_at: '' } as unknown as Item); setView('compose') }} />}
                 {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
                 {view === 'profiles' && <Profiles profiles={profiles} loading={profilesLoading} onRefresh={() => loadProfiles(user.id, true)} onRepurpose={repurpose} onConnect={() => go('accounts')} />}
-                {view === 'trends' && <Trends sources={trends?.sources ?? null} note={trends?.note ?? ''} loading={trendsLoading} onRefresh={() => loadTrends(user.id)} profiles={profiles} onWrite={(text) => quickPost(text)} />}
+                {view === 'trends' && <Trends sources={trends?.sources.filter((x) => !x.region || regions.includes(x.region)) ?? null} regions={regions} onRegion={toggleRegion} note={trends?.note ?? ''} loading={trendsLoading} onRefresh={() => loadTrends(user.id)} profiles={profiles} onWrite={(text) => quickPost(text)} />}
                 {view === 'help' && <Help onGo={go} />}
                 {view === 'accounts' && <Accounts connections={connections} onChange={() => { loadConnections(user.id); loadProfiles(user.id, true) }} />}
               </>

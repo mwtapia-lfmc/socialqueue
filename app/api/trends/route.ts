@@ -7,7 +7,8 @@ export interface Trend {
   actors?: { handle: string; avatar?: string }[]
   news?: { title: string; source?: string; url?: string }[]
 }
-export interface TrendSource { key: string; label: string; icon: string; blurb: string; trends: Trend[]; fetchedAt: string; error?: string; needs?: string }
+export type Region = 'la' | 'us' | 'world'
+export interface TrendSource { region?: Region; key: string; label: string; icon: string; blurb: string; trends: Trend[]; fetchedAt: string; error?: string; needs?: string }
 
 const cache = new Map<string, { at: number; data: TrendSource }>()
 const TTL = 15 * 60_000
@@ -33,18 +34,33 @@ async function bluesky() {
   return src
 }
 
-async function google() {
-  const src = base('google', 'Google Trends', '🔎', 'Search spikes across the US today — approximate searches and the headlines behind them')
-  try {
-    const xml = await fetch('https://trends.google.com/trending/rss?geo=US', { headers: UA }).then((r) => r.text())
+async function googleGeo(geo: string, limit: number) {
+  const xml = await fetch(`https://trends.google.com/trending/rss?geo=${geo}`, { headers: UA }).then((r) => r.text())
+  const out: Trend[] = []
     const g = (b: string, tag: string) => decode((b.match(new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`)) || [])[1]?.trim() || '')
-    src.trends = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 15).map((m) => {
+    out.push(...[...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, limit).map((m) => {
       const b = m[1]
       const news = [...b.matchAll(/<ht:news_item>([\s\S]*?)<\/ht:news_item>/g)].slice(0, 3).map((n) => ({ title: g(n[1], 'ht:news_item_title'), source: g(n[1], 'ht:news_item_source'), url: g(n[1], 'ht:news_item_url') }))
       const traffic = g(b, 'ht:approx_traffic')
       const topic = g(b, 'title')
       return { topic, summary: news[0]?.title, news, url: `https://www.google.com/search?q=${encodeURIComponent(topic)}`, count: Number(traffic.replace(/[^\d]/g, '')) || undefined, countLabel: 'searches', secondary: traffic ? `${traffic} searches` : undefined, startedAt: g(b, 'pubDate') ? new Date(g(b, 'pubDate')).toISOString() : undefined, image: g(b, 'ht:picture') }
-    }).filter((t) => t.topic)
+    }).filter((t) => t.topic))
+  return out
+}
+
+async function google(region: Region) {
+  const meta = {
+    la: { key: 'google-la', label: 'Google Trends · California', blurb: "Search spikes in California today. Google doesn't split out LA alone, so this is the closest read." },
+    us: { key: 'google-us', label: 'Google Trends · USA', blurb: 'Search spikes across the US today, with the headlines behind them' },
+    world: { key: 'google-world', label: 'Google Trends · World', blurb: 'Top searches in the UK, Canada, Australia, India, Germany and Brazil today' },
+  }[region]
+  const src = base(meta.key, meta.label, '🔎', meta.blurb); src.region = region
+  try {
+    if (region === 'world') {
+      const GEOS: [string, string][] = [['GB', '🇬🇧'], ['CA', '🇨🇦'], ['AU', '🇦🇺'], ['IN', '🇮🇳'], ['DE', '🇩🇪'], ['BR', '🇧🇷']]
+      const lists = await Promise.all(GEOS.map(async ([geo, flag]) => (await googleGeo(geo, 3).catch(() => [])).map((t) => ({ ...t, secondary: `${flag} ${t.secondary || ''}`.trim() }))))
+      src.trends = lists.flat()
+    } else src.trends = await googleGeo(region === 'la' ? 'US-CA' : 'US', 15)
   } catch (e: any) { src.error = e.message }
   return src
 }
@@ -61,10 +77,15 @@ async function hackernews() {
   return src
 }
 
-async function reddit() {
-  const src = base('reddit', 'Reddit', '👽', 'What people are upvoting and arguing about right now (r/popular), in rank order')
+async function reddit(region: Region) {
+  const meta = {
+    la: { key: 'reddit-la', label: 'Reddit · Los Angeles', blurb: 'Hot right now on r/LosAngeles', url: 'https://www.reddit.com/r/LosAngeles/.rss?limit=20' },
+    us: { key: 'reddit-us', label: 'Reddit · USA', blurb: 'What Americans are upvoting and arguing about (r/popular), in rank order', url: 'https://www.reddit.com/r/popular/.rss?geo_filter=US&limit=20' },
+    world: { key: 'reddit-world', label: 'Reddit · World', blurb: 'What the whole planet is upvoting (r/popular, global), in rank order', url: 'https://www.reddit.com/r/popular/.rss?geo_filter=GLOBAL&limit=20' },
+  }[region]
+  const src = base(meta.key, meta.label, '👽', meta.blurb); src.region = region
   try {
-    const r = await fetch('https://www.reddit.com/r/popular/.rss?limit=20', { headers: UA })
+    const r = await fetch(meta.url, { headers: UA })
     if (!r.ok) throw new Error(`Reddit said ${r.status}`)
     const xml = await r.text()
     src.trends = Array.from(xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)).slice(0, 15).map((m) => {
@@ -97,6 +118,8 @@ export async function GET(request: Request) {
   const db = userClient(request)
   const { data: conns } = await db.from('connections').select('platform, credentials')
   const xTok = conns?.find((c) => c.platform === 'twitter')?.credentials?.accessToken
-  const sources = await Promise.all([cached('bluesky', bluesky), cached('google', google), cached('hn', hackernews), cached('reddit', reddit), xTok ? cached('x', () => xTrends(xTok)) : xTrends(undefined)])
+  const sources = await Promise.all([cached('bluesky', bluesky), ...(['la', 'us', 'world'] as Region[]).flatMap((rg) => [cached(`google-${rg}`, () => google(rg)), cached(`reddit-${rg}`, () => reddit(rg))]), cached('hn', hackernews), xTok ? cached('x', () => xTrends(xTok)) : xTrends(undefined)])
+  const REGION: Record<string, Region> = { bluesky: 'world', hn: 'world', twitter: 'us', x: 'us' }
+  for (const sc of sources) sc.region ??= REGION[sc.key] ?? 'world'
   return Response.json({ sources, fetchedAt: new Date().toISOString(), note: 'Meta (Threads, Instagram, Facebook) and LinkedIn publish no trending data. Bluesky and Google are the closest read on what people are talking about right now.' })
 }
