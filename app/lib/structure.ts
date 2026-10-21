@@ -165,3 +165,8 @@ export function weekDates(year: number, n: number): string[] {
   return out
 }
 export const shortDate = (k: string) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }
+
+// Empty slots made by the retired "Plan 2 weeks" button: no text, generic title, idea stage
+const PLACEHOLDER_TITLE = /^(note idea|longform idea|(inspirational|topical|educational|repurposed|note) note)$/i
+export const isPlaceholder = (it: Pick<Item, 'publication_id' | 'stage' | 'content' | 'hook' | 'title'>) =>
+  !!it.publication_id && it.stage === 'idea' && !(it.content || '').trim() && !(it.hook || '').trim() && PLACEHOLDER_TITLE.test((it.title || '').trim())

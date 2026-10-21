@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { formatTime, timeAgo } from '../lib/text'
-import { CADENCE, EMOJI_CHOICES, FORMAT_LABEL, STAGES, STAGE_STYLE, STRUCTURE_SQL, itemTags, seriesEmoji, shortDate, stageOf, tagRegistry, weekDates, weekOfYear, ymd, type Format, type Series, type Stage, type StructureData, type TagInfo } from '../lib/structure'
+import { CADENCE, EMOJI_CHOICES, FORMAT_LABEL, STAGES, STAGE_STYLE, STRUCTURE_SQL, isPlaceholder, itemTags, seriesEmoji, shortDate, stageOf, tagRegistry, weekDates, weekOfYear, ymd, type Format, type Series, type Stage, type StructureData, type TagInfo } from '../lib/structure'
 import type { Item } from './UnifiedComposer'
 
 export type StructureState = 'loading' | 'missing' | 'empty' | 'ready'
@@ -22,7 +22,7 @@ interface Props {
   onRepurpose: (item: Item) => void
   onMarkPublished: (item: Item) => Promise<void>
   onDelete: (item: Item) => Promise<void>
-  onPlan: () => Promise<void>
+  onClearPlaceholders: (ids: string[]) => Promise<void>
   onPlace: (item: Item, date: string | null, time?: string | null) => Promise<void>
   onNewSeries: (name: string) => Promise<Series | null>
   onEmoji: (kind: 'series' | 'tag', ref: string, emoji: string) => Promise<void>
@@ -99,7 +99,8 @@ export default function Structure(p: Props) {
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const mine = useMemo(() => (data ? items.filter((i) => i.publication_id === data.publication.id) : []), [items, data])
+  const mine = useMemo(() => (data ? items.filter((i) => i.publication_id === data.publication.id && !isPlaceholder(i)) : []), [items, data])
+  const placeholders = useMemo(() => (data ? items.filter((i) => i.publication_id === data.publication.id && isPlaceholder(i)) : []), [items, data])
   const toggleWeek = (n: number) => setExpanded((cur) => { const x = new Set(cur); x.has(n) ? x.delete(n) : x.add(n); return x })
   const makeSeries = async () => {
     const name = seriesName.trim(); if (!name) return
@@ -172,6 +173,13 @@ export default function Structure(p: Props) {
       </div>
     </div>
   )
+
+  const Banner = placeholders.length > 0 ? (
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <span>🧹 <strong>{placeholders.length}</strong> empty placeholder slot{placeholders.length > 1 ? 's' : ''} from the old Plan 2 weeks button {placeholders.length > 1 ? 'are' : 'is'} hidden. None of your writing is in them.</span>
+      <button onClick={() => confirm(`Permanently delete ${placeholders.length} empty placeholder slot${placeholders.length > 1 ? 's' : ''}? Anything with text, a hook, or a real title is kept.`) && run(() => p.onClearPlaceholders(placeholders.map((i) => i.id)))} disabled={busy} className="ml-auto px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50">{busy ? 'Deleting…' : `Delete ${placeholders.length}`}</button>
+    </div>
+  ) : null
 
   // ---------------- PLANNER ----------------
   if (mode === 'planner') {
@@ -285,6 +293,7 @@ export default function Structure(p: Props) {
     return (
       <div className="sq-fade-in">
         {Header}
+        {Banner}
         <div className="grid xl:grid-cols-[380px_1fr] gap-5 items-start">
           {/* ---------- repository ---------- */}
           <aside onDragOver={(e) => { if (dragged?.planned_for) { e.preventDefault(); setOverKey('repo') } }} onDragLeave={() => setOverKey((k) => (k === 'repo' ? null : k))} onDrop={(e) => { e.preventDefault(); drop(null) }}
@@ -310,7 +319,6 @@ export default function Structure(p: Props) {
             <div className="flex flex-wrap items-center gap-3 px-1">
               <div className="mr-auto"><h3 className="text-lg font-bold">{year} · Weeks {showPast ? 1 : todayWeek}–52</h3><p className="text-[11px] text-gray-500">Week 1 starts Jan 1 · Week 52 ends Dec 31. Click a week to open or close it. Drag a title onto a day.</p></div>
               {todayWeek > 1 && <button onClick={() => setShowPast((v) => !v)} className="text-xs px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200">{showPast ? 'Hide earlier weeks' : `Show earlier weeks (${todayWeek - 1})`}</button>}
-              <button onClick={() => confirm('Create 14 Note placeholders and 2 Longform placeholders on the calendar over the next two weeks?') && run(p.onPlan)} disabled={busy} className="text-xs px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200">{busy ? 'Planning…' : 'Plan 2 weeks'}</button>
             </div>
 
             {Array.from({ length: 52 - (showPast ? 1 : todayWeek) + 1 }, (_, i) => (showPast ? 1 : todayWeek) + i).map((n) => {
@@ -415,6 +423,7 @@ export default function Structure(p: Props) {
   return (
     <div className="sq-fade-in">
       {Header}
+      {Banner}
       <div className="grid lg:grid-cols-[260px_1fr] gap-6">
         <nav className="sq-card p-3 self-start lg:sticky lg:top-6 space-y-1">
           {navBtn({ kind: 'all' }, '🗂 All posts', countText(mine))}

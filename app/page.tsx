@@ -17,7 +17,7 @@ import Trends from './components/Trends'
 import Help from './components/Help'
 import Structure, { type StructureState, type NewCtx } from './components/Structure'
 import { logoBlob, uploadLogo } from './lib/images'
-import { tagRegistry, slugTag, type Series, SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
+import { isPlaceholder, tagRegistry, slugTag, type Series, SEED_BUCKETS, SEED_IDEAS, SEED_SERIES, ymd, type Format, type StructureData } from './lib/structure'
 
 type View = 'home' | 'compose' | 'batch' | 'structure' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts' | 'help'
 
@@ -251,18 +251,10 @@ export default function Home() {
 
   const markPublished = (it: Item) => setStatus(it, { status: 'published', published_at: new Date().toISOString() })
 
-  const planTwoWeeks = async () => {
-    if (!structure) return
-    const today = new Date()
-    const day = (n: number) => { const d = new Date(today); d.setDate(today.getDate() + n); return ymd(d) }
-    const base = { user_id: user.id, tone: 'casual', platforms: noPlatforms, hashtags: [], image_urls: [], status: 'draft', stage: 'idea', publication_id: structure.publication.id, tags: [] }
-    const rows = [
-      ...Array.from({ length: 14 }, (_, i) => ({ ...base, kind: 'post', format: 'note', title: 'Note idea', content: '', planned_for: day(i) })),
-      ...[2, 9].map((n, i) => ({ ...base, kind: 'blog', format: 'longform', title: 'Longform idea', content: '', planned_for: day(n) })),
-    ]
-    const { error } = await supabase.from('items').insert(rows)
-    if (error) return alert('Planning failed: ' + error.message)
-    await loadItems(user.id)
+  const clearPlaceholders = async (ids: string[]) => {
+    const { error } = await supabase.from('items').delete().in('id', ids)
+    if (error) return alert('Could not delete the placeholders: ' + error.message)
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)))
   }
 
   const tagOptions = structure ? tagRegistry(structure.buckets, items.filter((i) => i.publication_id === structure.publication.id)) : []
@@ -395,10 +387,10 @@ export default function Home() {
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); go('queue') }} />
                 )}
                 {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji} onNewSeries={createSeries}
-                  onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onPlan={planTwoWeeks} />}
+                  onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}
                 {view === 'drafts' && <Drafts items={drafts} onEdit={edit} onSchedule={schedule} onDelete={remove} />}
-                {view === 'calendar' && <Calendar items={items.filter((i) => i.schedule_date || i.planned_for)} onSelect={edit}
+                {view === 'calendar' && <Calendar items={items.filter((i) => (i.schedule_date || i.planned_for) && !isPlaceholder(i))} onSelect={edit}
                   onMove={(it, date, time) => it.schedule_date ? setStatus(it, { schedule_date: date, schedule_time: time, ...(it.status === 'failed' ? { status: 'scheduled', publish_log: null } : {}) }) : placeItem(it, date, time)}
                   onCreate={(date, time) => { setEditing({ id: '', kind: 'post', title: null, content: '', tone: 'casual', platforms: Object.fromEntries(['threads', 'twitter', 'bluesky', 'linkedin'].map((p) => [p, !!connections.find((c) => c.platform === p)])), hashtags: [], image_urls: [], analysis: null, status: 'draft', schedule_date: date, schedule_time: time, created_at: '', updated_at: '' } as unknown as Item); setView('compose') }} />}
                 {view === 'queue' && <ScheduledPosts items={queue} onEdit={edit} onUnschedule={unschedule} onDelete={remove} onPublishNow={publishNow} />}
