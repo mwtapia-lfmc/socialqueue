@@ -77,26 +77,38 @@ async function hackernews() {
   return src
 }
 
+let redditToken: { value: string; exp: number } | null = null
+async function redditAuth() {
+  const id = process.env.REDDIT_CLIENT_ID, secret = process.env.REDDIT_CLIENT_SECRET
+  if (!id || !secret) return null
+  if (redditToken && redditToken.exp > Date.now() + 60_000) return redditToken.value
+  const r = await fetch('https://www.reddit.com/api/v1/access_token', {
+    method: 'POST', headers: { ...UA, Authorization: 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=client_credentials',
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok || !j.access_token) throw new Error(`Reddit login failed (${r.status}). Check REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET.`)
+  redditToken = { value: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 }
+  return redditToken.value
+}
+
 async function reddit(region: Region) {
   const meta = {
-    la: { key: 'reddit-la', label: 'Reddit · Los Angeles', blurb: 'Hot right now on r/LosAngeles', url: 'https://www.reddit.com/r/LosAngeles/.rss?limit=20' },
-    us: { key: 'reddit-us', label: 'Reddit · USA', blurb: 'What Americans are upvoting and arguing about (r/popular), in rank order', url: 'https://www.reddit.com/r/popular/.rss?geo_filter=US&limit=20' },
-    world: { key: 'reddit-world', label: 'Reddit · World', blurb: 'What the whole planet is upvoting (r/popular, global), in rank order', url: 'https://www.reddit.com/r/popular/.rss?geo_filter=GLOBAL&limit=20' },
+    la: { key: 'reddit-la', label: 'Reddit · Los Angeles', blurb: 'Hot right now on r/LosAngeles', path: '/r/LosAngeles/hot?limit=20' },
+    us: { key: 'reddit-us', label: 'Reddit · USA', blurb: 'What Americans are upvoting and arguing about (r/popular)', path: '/r/popular?geo_filter=US&limit=20' },
+    world: { key: 'reddit-world', label: 'Reddit · World', blurb: 'What the whole planet is upvoting (r/popular, global)', path: '/r/popular?geo_filter=GLOBAL&limit=20' },
   }[region]
   const src = base(meta.key, meta.label, '👽', meta.blurb); src.region = region
   try {
-    const r = await fetch(meta.url, { headers: UA })
+    const token = await redditAuth()
+    if (!token) { src.needs = 'Reddit blocks anonymous requests from our server. Add REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET in Vercel to turn this on.'; return src }
+    const r = await fetch('https://oauth.reddit.com' + meta.path, { headers: { ...UA, Authorization: `Bearer ${token}` } })
     if (!r.ok) throw new Error(`Reddit said ${r.status}`)
-    const xml = await r.text()
-    src.trends = Array.from(xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)).slice(0, 15).map((m) => {
-      const e = m[1]
-      const title = decode(e.match(/<title>([\s\S]*?)<\/title>/)?.[1] || '').trim()
-      const sub = e.match(/<category term="([^"]+)"/)?.[1]
-      const url = e.match(/<link href="([^"]+)"/)?.[1]
-      const author = e.match(/<name>\/u\/([^<]+)<\/name>/)?.[1]
-      const updated = e.match(/<updated>([^<]+)<\/updated>/)?.[1]
-      return { topic: title, summary: sub ? `Posted in r/${sub}${author ? ` by u/${author}` : ''}.` : undefined, url, secondary: sub ? `r/${sub}` : undefined, category: sub, startedAt: updated }
-    }).filter((t) => t.topic)
+    const j = await r.json()
+    src.trends = (j.data?.children || []).filter((c: any) => !c.data?.stickied).slice(0, 15).map((c: any) => {
+      const d = c.data
+      return { topic: decode(d.title), summary: `Posted in r/${d.subreddit} by u/${d.author}.`, url: 'https://www.reddit.com' + d.permalink, count: d.score, countLabel: 'upvotes', secondary: `${d.num_comments} comments · r/${d.subreddit}`, category: d.subreddit, startedAt: new Date(d.created_utc * 1000).toISOString() }
+    })
     if (!src.trends.length) throw new Error('No Reddit posts came back')
   } catch (e: any) { src.error = e.message }
   return src
