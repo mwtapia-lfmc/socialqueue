@@ -130,7 +130,7 @@ export async function GET(request: Request) {
   const db = userClient(request)
   const { data: conns } = await db.from('connections').select('platform, credentials')
   const xTok = conns?.find((c) => c.platform === 'twitter')?.credentials?.accessToken
-  const sources = await Promise.all([cached('bluesky', bluesky), ...(['la', 'us', 'world'] as Region[]).flatMap((rg) => [cached(`google-${rg}`, () => google(rg)), cached(`reddit-${rg}`, () => reddit(rg))]), cached('hn', hackernews), xTok ? cached('x', () => xTrends(xTok)) : xTrends(undefined)])
+  const sources = await Promise.all([cached('bluesky', bluesky), ...(['la', 'us', 'world'] as Region[]).flatMap((rg) => [cached(`google-${rg}`, () => google(rg)), ...(process.env.REDDIT_CLIENT_ID ? [cached(`reddit-${rg}`, () => reddit(rg))] : [])]), cached('hn', hackernews), xTok ? cached('x', () => xTrends(xTok)) : xTrends(undefined)])
   const REGION: Record<string, Region> = { bluesky: 'world', hn: 'world', twitter: 'us', x: 'us' }
   for (const sc of sources) sc.region ??= REGION[sc.key] ?? 'world'
   return Response.json({ sources, fetchedAt: new Date().toISOString(), note: 'Meta (Threads, Instagram, Facebook) and LinkedIn publish no trending data. Bluesky and Google are the closest read on what people are talking about right now.' })
