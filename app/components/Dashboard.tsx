@@ -24,8 +24,12 @@ const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 
 export default function Dashboard({ user, items, connections, trends, onGo, onEdit, onQuickPost, quick, onQuick }: Props) {
   const today = new Date()
+  const [draftTab, setDraftTab] = useState<'post' | 'long'>('post')
   const todayKey = ymd(today)
   const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea' && !isPlaceholder(i))
+  const postDrafts = drafts.filter((i) => i.kind !== 'blog')
+  const longDrafts = drafts.filter((i) => i.kind === 'blog')
+  const shownDrafts = (draftTab === 'post' ? postDrafts : longDrafts).slice().sort((a, b) => b.updated_at.localeCompare(a.updated_at))
   const scheduled = items.filter((i) => i.status === 'scheduled').sort((a, b) => `${a.schedule_date}${a.schedule_time}`.localeCompare(`${b.schedule_date}${b.schedule_time}`))
   const upNext = scheduled.filter((i) => (i.schedule_date || '') >= todayKey).slice(0, 5)
   const failed = items.filter((i) => i.status === 'failed')
@@ -117,32 +121,32 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
           <div className="sq-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-800">Up next</h3>
-              <button onClick={() => onGo('calendar')} className="text-xs text-indigo-600 hover:underline">Calendar →</button>
+            <div className="flex items-center justify-between mb-3 gap-2">
+              <h3 className="text-sm font-semibold text-gray-800">Drafts</h3>
+              <span className="inline-flex rounded-full bg-gray-100 p-0.5 text-xs">
+                {([['post', 'Posts', postDrafts.length], ['long', 'Longform', longDrafts.length]] as const).map(([k, label, n]) => (
+                  <button key={k} onClick={() => setDraftTab(k)} className={`px-3 py-1 rounded-full font-medium ${draftTab === k ? 'bg-white shadow text-indigo-700' : 'text-gray-500'}`}>{label} <span className="opacity-60">{n}</span></button>
+                ))}
+              </span>
+              <span className="flex-1" />
+              <button onClick={() => onGo('drafts')} className="text-xs text-indigo-600 hover:underline whitespace-nowrap">All drafts →</button>
             </div>
-            {upNext.length === 0 ? (
-              <p className="text-sm text-gray-400">Nothing scheduled. {drafts.length ? `You have ${drafts.length} draft${drafts.length > 1 ? 's' : ''} ready to schedule.` : ''}</p>
+            {shownDrafts.length === 0 ? (
+              <p className="text-sm text-gray-400">No {draftTab === 'post' ? 'post' : 'longform'} drafts yet.</p>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {upNext.map((it) => {
-                  const d = parseYmd(it.schedule_date!)
-                  const isToday = it.schedule_date === todayKey
-                  return (
-                    <li key={it.id}>
-                      <button onClick={() => onEdit(it)} className="w-full text-left flex gap-3 items-center py-2.5 hover:bg-indigo-50/60 rounded-lg px-2 -mx-2">
-                        <div className={`shrink-0 w-12 text-center rounded-lg py-1 ${isToday ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                          <div className="text-[9px] uppercase font-semibold">{isToday ? 'Today' : d.toLocaleString('default', { weekday: 'short' })}</div>
-                          <div className="text-sm font-bold leading-none">{d.getDate()}</div>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-gray-800 truncate">{it.title || it.content.split('\n')[0]}</p>
-                          <p className="text-[11px] text-gray-500">{formatTime(it.schedule_time)} · {it.kind === 'blog' ? '📝 Blog' : platformsOf(it).map((p) => PLATFORM_META[p].icon).join(' ')}</p>
-                        </div>
-                      </button>
-                    </li>
-                  )
-                })}
+                {shownDrafts.slice(0, 5).map((it) => (
+                  <li key={it.id}>
+                    <button onClick={() => onEdit(it)} className="w-full text-left py-2.5 hover:bg-indigo-50/60 rounded-lg px-2 -mx-2">
+                      <div className="flex items-baseline gap-2">
+                        <p className="flex-1 min-w-0 text-sm font-medium text-gray-800 truncate">{it.title || it.hook || it.content.split('\n')[0] || 'Untitled'}</p>
+                        <span className="text-[11px] text-gray-400 shrink-0">{timeAgo(it.updated_at)}</span>
+                      </div>
+                      {it.content && <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{it.content.replace(/\s+/g, ' ')}</p>}
+                      {it.kind !== 'blog' && platformsOf(it).length > 0 && <p className="text-[11px] text-gray-400 mt-0.5">{platformsOf(it).map((p) => PLATFORM_META[p].icon).join(' ')}</p>}
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
           </div>
@@ -192,23 +196,6 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
             )}
           </div>
 
-          {drafts.length > 0 && (
-            <div className="sq-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-800">Recent drafts</h3>
-                <button onClick={() => onGo('drafts')} className="text-xs text-indigo-600 hover:underline">All drafts →</button>
-              </div>
-              <ul className="space-y-2">
-                {drafts.slice(0, 4).map((it) => (
-                  <li key={it.id}>
-                    <button onClick={() => onEdit(it)} className="w-full text-left text-[13px] text-gray-800 truncate hover:text-indigo-700">
-                      {it.title || it.content.split('\n')[0] || 'Untitled'} <span className="text-[11px] text-gray-400">· {timeAgo(it.updated_at)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       </div>
     </div>
