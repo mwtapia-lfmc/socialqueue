@@ -15,13 +15,14 @@ interface Props {
   onGo: (view: 'compose' | 'batch' | 'drafts' | 'calendar' | 'queue' | 'profiles' | 'trends' | 'accounts') => void
   onEdit: (item: Item) => void
   onQuickPost: (text: string) => void
+  quick: string
+  onQuick: (text: string) => void
 }
 
 const platformsOf = (it: Item) => (Object.keys(it.platforms) as Platform[]).filter((p) => it.platforms[p])
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-export default function Dashboard({ user, items, connections, trends, onGo, onEdit, onQuickPost }: Props) {
-  const [quick, setQuick] = useState('')
+export default function Dashboard({ user, items, connections, trends, onGo, onEdit, onQuickPost, quick, onQuick }: Props) {
   const today = new Date()
   const todayKey = ymd(today)
   const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea' && !isPlaceholder(i))
@@ -39,6 +40,22 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
 
   return (
     <div className="space-y-5 sq-fade-in">
+      <div className="sq-card p-4 md:p-5">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-gray-800">Quick compose</h3>
+          <span className="text-[11px] text-gray-400">{quick.trim() ? 'Saved on this device' : 'Autosaves as you type'}</span>
+        </div>
+        <textarea value={quick} onChange={(e) => onQuick(e.target.value)} rows={5} placeholder="What's happening?"
+          className="w-full p-3 text-[15px] border border-gray-200 rounded-xl bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none" />
+        <div className="flex items-center gap-2 mt-2">
+          <span className="hidden sm:inline text-xs text-gray-400">{quick.length} chars</span>
+          <span className="flex-1" />
+          <button onClick={() => onGo('batch')} aria-label="Batch" className="text-sm px-2.5 py-2 rounded-lg text-gray-700 hover:bg-gray-100 whitespace-nowrap">⚡<span className="hidden sm:inline"> Batch</span></button>
+          <button onClick={() => { if (quick.trim()) { onQuickPost(quick); onQuick('') } else onGo('compose') }} className="text-sm px-2.5 py-2 rounded-lg text-gray-700 hover:bg-gray-100 whitespace-nowrap">Full composer</button>
+          <button onClick={() => { if (quick.trim()) { onQuickPost(quick); onQuick('') } }} disabled={!quick.trim()} className="sq-btn-primary text-sm px-4 py-2 rounded-lg font-semibold whitespace-nowrap">Continue →</button>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">{greet}{firstName ? `, ${firstName}` : ''}.</h2>
@@ -99,19 +116,6 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
 
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
-          <div className="sq-card p-5">
-            <h3 className="text-sm font-semibold text-gray-800 mb-2">Quick post</h3>
-            <textarea value={quick} onChange={(e) => setQuick(e.target.value)} rows={3} placeholder="What's happening? Opens in the full composer with previews…"
-              className="w-full p-3 text-[15px] border border-gray-200 rounded-xl bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none" />
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-xs text-gray-400">{quick.length} chars</span>
-              <span className="flex-1" />
-              <button onClick={() => onGo('batch')} className="text-sm px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100">⚡ Batch</button>
-              <button onClick={() => onGo('compose')} className="text-sm px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100">Full composer</button>
-              <button onClick={() => quick.trim() && onQuickPost(quick)} disabled={!quick.trim()} className="sq-btn-primary text-sm px-4 py-2 rounded-lg font-semibold">Continue →</button>
-            </div>
-          </div>
-
           <div className="sq-card p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-800">Up next</h3>

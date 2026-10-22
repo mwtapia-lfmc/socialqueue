@@ -132,3 +132,9 @@ body {
 .sq-substack blockquote { border-left: 3px solid #ff6719; padding-left: 1em; margin: 1.2em 0; color: #4a4a4a; font-style: italic; }
 .sq-substack a { color: #ff6719; text-decoration: underline; }
 .sq-substack strong { font-weight: 700; }
+
+/* Phones: nothing slides sideways, and iOS must not zoom into fields */
+html, body { max-width: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
+@media (max-width: 767px) {
+  input, textarea, select { font-size: 16px !important; }
+}

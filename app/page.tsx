@@ -37,6 +37,10 @@ export default function Home() {
   const [regions, setRegions] = useState<Region[]>(['la', 'us', 'world'])
   useEffect(() => { try { const r = JSON.parse(localStorage.getItem('sq:trendRegions') || 'null'); if (Array.isArray(r)) setRegions(r) } catch {} }, [])
   const toggleRegion = (rg: Region) => setRegions((cur) => { const nx = cur.includes(rg) ? cur.filter((x) => x !== rg) : [...cur, rg]; try { localStorage.setItem('sq:trendRegions', JSON.stringify(nx)) } catch {}; return nx })
+  const [quickText, setQuickTextRaw] = useState('')
+  useEffect(() => { try { setQuickTextRaw(localStorage.getItem('sq:quick') || '') } catch {} }, [])
+  const setQuickText = (t: string) => { setQuickTextRaw(t); try { t ? localStorage.setItem('sq:quick', t) : localStorage.removeItem('sq:quick') } catch {} }
+  const [moreOpen, setMoreOpen] = useState(false)
   const [view, setView] = useState<View>('home')
   const [editing, setEditing] = useState<Item | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
@@ -45,7 +49,10 @@ export default function Home() {
   const [collapsed, setCollapsed] = useState(false)
   useEffect(() => { try { setCollapsed(localStorage.getItem('sq:sidebar') === 'collapsed') } catch {} }, [])
   const toggleSidebar = () => setCollapsed((c) => { try { localStorage.setItem('sq:sidebar', c ? 'open' : 'collapsed') } catch {}; return !c })
-  const go = (v: View) => { setView(v); if (v !== 'compose') setEditing(null); window.scrollTo({ top: 0 }) }
+  const go = (v: View) => {
+    setMoreOpen(false)
+    if (v === 'compose' && !editing && quickText.trim()) { quickPost(quickText); setQuickText(''); window.scrollTo({ top: 0 }); return }
+    setView(v); if (v !== 'compose') setEditing(null); window.scrollTo({ top: 0 }) }
 
   const cacheGet = <T,>(k: string): T | null => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null } catch { return null } }
   const cacheSet = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
@@ -443,22 +450,46 @@ export default function Home() {
                     className="md:hidden sq-btn-primary fixed right-4 z-30 h-14 w-14 rounded-full text-3xl leading-none flex items-center justify-center shadow-xl" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 76px)' }}>＋</button>
                 )}
                 {/* Mobile bottom nav */}
-                <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-                  <div className="flex overflow-x-auto sq-scroll">
-                    {tabs.map((t) => {
-                      const [icon, ...rest] = t.label.split(' ')
-                      const active = view === t.key
-                      return (
-                        <button key={t.key} onClick={() => go(t.key)}
-                          className={`relative shrink-0 w-[68px] flex flex-col items-center gap-0.5 py-2 text-[10px] ${active ? 'text-indigo-600 font-semibold' : 'text-gray-500'}`}>
-                          <span className="text-lg leading-none">{icon}</span>
-                          <span className="truncate max-w-full px-0.5">{rest.join(' ')}</span>
-                          {t.count ? <span className="absolute top-1 right-1/2 translate-x-4 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] flex items-center justify-center">{t.count}</span> : null}
-                        </button>
-                      )
-                    })}
+                <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/90 backdrop-blur-md border-t border-gray-200" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                  <div className="grid grid-cols-5">
+                    {([['home', '🏠', 'Quick'], ['compose', '✍️', 'Compose'], ['structure', '🗓', 'Planner'], ['drafts', '📝', 'Drafts']] as [View, string, string][]).map(([k, icon, label]) => (
+                      <button key={k} onClick={() => go(k)} className={`relative flex flex-col items-center gap-0.5 py-2 text-[10px] ${view === k ? 'text-indigo-600 font-semibold' : 'text-gray-500'}`}>
+                        <span className="text-xl leading-none">{icon}</span><span>{label}</span>
+                        {k === 'drafts' && drafts.length > 0 && <span className="absolute top-1 right-3 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] flex items-center justify-center">{drafts.length}</span>}
+                      </button>
+                    ))}
+                    <button onClick={() => setMoreOpen((v) => !v)} className={`flex flex-col items-center gap-0.5 py-2 text-[10px] ${moreOpen ? 'text-indigo-600 font-semibold' : 'text-gray-500'}`}>
+                      <span className="text-xl leading-none">☰</span><span>More</span>
+                    </button>
                   </div>
                 </nav>
+                {moreOpen && (
+                  <div className="md:hidden fixed inset-0 z-20" onClick={() => setMoreOpen(false)}>
+                    <div className="absolute inset-0 bg-black/30" />
+                    <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white p-4 overflow-y-auto" style={{ maxHeight: '75vh', paddingBottom: 'calc(env(safe-area-inset-bottom) + 76px)' }} onClick={(e) => e.stopPropagation()}>
+                      {(() => {
+                        const groups: { name: string; items: typeof tabs }[] = [{ name: '', items: [] }]
+                        tabs.forEach((t) => { if (t.group) groups.push({ name: t.group, items: [] }); groups[groups.length - 1].items.push(t) })
+                        return groups.map((g) => (
+                          <div key={g.name || 'top'} className="mb-3">
+                            {g.name && <p className="mb-1.5"><span className="inline-block px-2 py-px rounded-full bg-[#7c3aed]/50 text-[10px] font-semibold uppercase tracking-wider text-white">{g.name}</span></p>}
+                            <div className="grid grid-cols-3 gap-2">
+                              {g.items.map((t) => {
+                                const [icon, ...rest] = t.label.split(' ')
+                                return (
+                                  <button key={t.key} onClick={() => go(t.key)} className={`relative flex flex-col items-center gap-1 rounded-xl py-3 text-xs ${view === t.key ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'bg-gray-50 text-gray-700'}`}>
+                                    <span className="text-xl leading-none">{icon}</span><span>{rest.join(' ')}</span>
+                                    {t.count ? <span className="absolute top-1 right-2 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[9px] flex items-center justify-center">{t.count}</span> : null}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))
+                      })()}
+                    </div>
+                  </div>
+                )}
 
                 {connections.length === 0 && (view === 'compose' || view === 'home') && (
                   <button onClick={() => go('accounts')} className="w-full mb-5 text-left sq-card p-4 flex items-center gap-3 border-amber-200 bg-amber-50/70 hover:bg-amber-50 sq-fade-in">
@@ -468,7 +499,7 @@ export default function Home() {
                   </button>
                 )}
 
-                {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources.filter((x) => !x.region || regions.includes(x.region)) ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} />}
+                {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources.filter((x) => !x.region || regions.includes(x.region)) ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} quick={quickText} onQuick={setQuickText} />}
                 {view === 'compose' && (
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
                 )}
