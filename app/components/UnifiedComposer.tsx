@@ -38,6 +38,7 @@ export interface Item {
   planned_time?: string | null
   source_item_id?: string | null
   tags?: string[] | null
+  prompt_hint?: string | null
   status: 'draft' | 'scheduled' | 'published' | 'failed'
   published_at?: string | null
   publish_log?: Record<string, { ok: boolean; url?: string; error?: string }> | null
@@ -108,6 +109,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     if (item) {
       setId(item.id || null)
       setDraft({ ...empty(accounts), ...item })
+      if (item.prompt_hint) { setShowPrompt(true); setPromptText(item.prompt_hint) }
       skipNextSave.current = true
       setSaveState('idle')
     }
@@ -149,8 +151,8 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     } catch (e) { alert('Grading failed: ' + (e as Error).message) }
     setGrading(false)
   }
-  const [showPrompt, setShowPrompt] = useState(false)
-  const [promptText, setPromptText] = useState('')
+  const [showPrompt, setShowPrompt] = useState(!!item?.prompt_hint)
+  const [promptText, setPromptText] = useState(item?.prompt_hint || '')
   const [promptBusy, setPromptBusy] = useState(false)
   const [promptTrend, setPromptTrend] = useState('')
   const [promptSeries, setPromptSeries] = useState('')

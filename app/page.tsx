@@ -8,6 +8,9 @@ import Drafts from './components/Drafts'
 import Brainstorm from './components/Brainstorm'
 import NotesLibrary from './components/NotesLibrary'
 import GlobalSearch from './components/GlobalSearch'
+import DailyPrompt from './components/DailyPrompt'
+import SeriesDaysEditor from './components/SeriesDaysEditor'
+import { defaultSeriesDays, type SeriesDays } from './lib/seriesDays'
 import { isEmptyNote, notebookOf, type Note } from './lib/notes'
 import Calendar from './components/Calendar'
 import ScheduledPosts from './components/ScheduledPosts'
@@ -332,6 +335,14 @@ export default function Home() {
     setItems((prev) => prev.filter((i) => !ids.includes(i.id)))
   }
 
+  const seriesDays: SeriesDays = user?.user_metadata?.series_days || (structure ? defaultSeriesDays(structure.series) : {})
+  const todaySeries = structure?.series.find((x) => x.id === seriesDays[new Date().getDay()]) || null
+  const saveSeriesDays = async (d: SeriesDays) => {
+    const { data, error } = await supabase.auth.updateUser({ data: { series_days: d } })
+    if (error) return alert('Could not save: ' + error.message)
+    setUser(data.user)
+  }
+  const writeFromPrompt = (prompt: string, seriesId: string | null) => edit({ ...newStructureItem('note', { seriesId }), prompt_hint: prompt } as Item)
   const tagOptions = structure ? tagRegistry(structure.buckets, items.filter((i) => i.publication_id === structure.publication.id)) : []
   const ideas = items.filter((i) => i.status === 'draft' && i.stage === 'idea' && !isPlaceholder(i))
   const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea' && !isPlaceholder(i))
@@ -499,10 +510,12 @@ export default function Home() {
                   </button>
                 )}
 
-                {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources.filter((x) => !x.region || regions.includes(x.region)) ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} quick={quickText} onQuick={setQuickText} />}
+                {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources.filter((x) => !x.region || regions.includes(x.region)) ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} quick={quickText} onQuick={setQuickText}
+                  dailyPrompt={<DailyPrompt series={todaySeries} trends={trends?.sources ?? null} onWrite={writeFromPrompt} onPlanDays={() => go('structure')} />} />}
                 {view === 'compose' && (
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
                 )}
+                {view === 'structure' && structure && <SeriesDaysEditor series={structure.series} days={seriesDays} onChange={saveSeriesDays} />}
                 {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji} onNewSeries={createSeries}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} onCadence={setCadence} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}

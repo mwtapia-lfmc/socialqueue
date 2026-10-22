@@ -16,13 +16,14 @@ interface Props {
   onEdit: (item: Item) => void
   onQuickPost: (text: string) => void
   quick: string
+  dailyPrompt?: React.ReactNode
   onQuick: (text: string) => void
 }
 
 const platformsOf = (it: Item) => (Object.keys(it.platforms) as Platform[]).filter((p) => it.platforms[p])
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-export default function Dashboard({ user, items, connections, trends, onGo, onEdit, onQuickPost, quick, onQuick }: Props) {
+export default function Dashboard({ user, items, connections, trends, onGo, onEdit, onQuickPost, quick, onQuick, dailyPrompt }: Props) {
   const today = new Date()
   const [draftTab, setDraftTab] = useState<'post' | 'long'>('post')
   const todayKey = ymd(today)
@@ -75,6 +76,8 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
           <button onClick={() => onGo('accounts')} className="h-9 w-9 rounded-full border-2 border-dashed border-gray-300 text-gray-400 hover:border-indigo-400 hover:text-indigo-500 text-lg leading-none" title="Connect an account">+</button>
         </div>
       </div>
+
+      {dailyPrompt}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
