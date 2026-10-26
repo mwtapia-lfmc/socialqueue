@@ -140,6 +140,17 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     } catch (e) { alert('Title ideas failed: ' + (e as Error).message) }
     setTitling(false)
   }
+  const [hooks, setHooks] = useState<{ line: string; why: string }[] | null>(null)
+  const [hooking, setHooking] = useState(false)
+  const findHooks = async () => {
+    setHooking(true)
+    try {
+      const r = await authedFetch('/api/suggest-hook', { method: 'POST', body: JSON.stringify({ title: draft.title, content: draft.content }) })
+      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      setHooks(d.hooks)
+    } catch (e) { alert('Hook finder failed: ' + (e as Error).message) }
+    setHooking(false)
+  }
   const [grade, setGrade] = useState<Grade | null>(null)
   const [grading, setGrading] = useState(false)
   const gradeIt = async () => {
@@ -439,8 +450,28 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
 
           <div>
             {isLong && (
-              <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook (optional): your single most quotable line. It becomes the Substack Note for this piece." title="Optional. Your best one-liner from this piece. Used as the Note when you share or repurpose it."
-                className="w-full mb-2 text-[15px] italic bg-orange-50/60 border border-orange-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300" />
+              <div className="mb-2">
+                <div className="flex gap-2">
+                  <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook (optional): your single most quotable line. It becomes the Substack Note for this piece." title="Optional. Your best one-liner from this piece. Used as the Note when you share or repurpose it."
+                className="flex-1 min-w-0 text-[15px] italic bg-orange-50/60 border border-orange-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300" />
+                  <button type="button" onClick={findHooks} disabled={hooking || !draft.content.trim()} title="Pull the most quotable lines from what you've written" className="shrink-0 px-3 rounded-lg text-sm font-medium bg-orange-100 text-orange-900 hover:bg-orange-200 disabled:opacity-50 whitespace-nowrap">{hooking ? <span className="sq-pulse">Reading…</span> : '✨ Find my hook'}</button>
+                </div>
+                {hooks && (
+                  <div className="mt-2 rounded-xl border border-orange-200 bg-orange-50/60 p-2.5 space-y-1.5 sq-fade-in">
+                    {hooks.map((h, i) => (
+                      <button key={i} type="button" onClick={() => { update({ hook: h.line }); setHooks(null) }} className="w-full text-left px-3 py-2 rounded-lg bg-white border border-orange-100 hover:border-orange-400">
+                        <span className="block text-[15px] italic">“{h.line}”</span>
+                        {h.why && <span className="block text-[11px] text-orange-800/80 mt-0.5">{h.why}</span>}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-3 text-xs">
+                      <button type="button" onClick={findHooks} disabled={hooking} className="text-orange-900 hover:underline">{hooking ? 'Reading…' : '🔄 Try again'}</button>
+                      <button type="button" onClick={() => setHooks(null)} className="text-gray-500 hover:underline">Close</button>
+                      <span className="text-gray-400">Your own words, pulled from the draft. Click one to use it.</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
             <div className="flex flex-wrap items-center gap-1 mb-2 relative">
               {[
