@@ -22,8 +22,6 @@ function placeholderSvg(prompt: string, size: GenSize) {
 
 export const maxDuration = 60
 
-export const maxDuration = 60
-
 export async function POST(request: Request) {
   if (!(await requireUser(request))) return signInFirst()
   try {
