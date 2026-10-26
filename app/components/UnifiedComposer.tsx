@@ -140,6 +140,12 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     } catch (e) { alert('Title ideas failed: ' + (e as Error).message) }
     setTitling(false)
   }
+  const [newSeries, setNewSeries] = useState<string | null>(null)
+  const makeSeries = async () => {
+    const name = (newSeries || '').trim(); if (!name || !onNewSeries) return
+    const made = await onNewSeries(name)
+    if (made) { update({ series_id: made.id }); setNewSeries(null) }
+  }
   const [hooks, setHooks] = useState<{ line: string; why: string }[] | null>(null)
   const [hooking, setHooking] = useState(false)
   const findHooks = async () => {
@@ -629,6 +635,14 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                     {structure.series.map((x) => <option key={x.id} value={x.id}>{seriesEmoji(x)} {x.name}</option>)}
                   </select>
                 </label>
+                {onNewSeries && (newSeries === null
+                  ? <button type="button" onClick={() => setNewSeries('')} className="h-8 px-3 rounded-lg text-sm font-medium bg-white border border-dashed border-orange-300 text-orange-800 hover:bg-orange-50">＋ New series</button>
+                  : <span className="flex items-center gap-1.5">
+                      <input autoFocus value={newSeries} onChange={(e) => setNewSeries(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); makeSeries() } if (e.key === 'Escape') setNewSeries(null) }}
+                        placeholder="Series name" className="h-8 w-44 px-2 text-sm bg-white border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-200" />
+                      <button type="button" onClick={makeSeries} disabled={!newSeries.trim()} className="h-8 px-3 rounded-lg text-sm font-semibold bg-orange-500 text-white disabled:opacity-50">Add</button>
+                      <button type="button" onClick={() => setNewSeries(null)} className="text-xs text-gray-500 hover:underline">Cancel</button>
+                    </span>)}
                 <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-50 text-blue-700">📅
                   <input type="date" value={draft.planned_for || ''} onChange={(e) => update({ planned_for: e.target.value || null })} className="h-6 bg-transparent text-xs" />
                   <input type="time" value={(draft.planned_time || '').slice(0, 5)} onChange={(e) => update({ planned_time: e.target.value || null, planned_for: draft.planned_for || ymdLocal(new Date()) })} className="h-6 bg-transparent text-xs" />
