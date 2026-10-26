@@ -22,6 +22,8 @@ function placeholderSvg(prompt: string, size: GenSize) {
 
 export const maxDuration = 60
 
+export const maxDuration = 60
+
 export async function POST(request: Request) {
   if (!(await requireUser(request))) return signInFirst()
   try {
@@ -52,6 +54,8 @@ export async function POST(request: Request) {
       return Response.json({ imageUrl: `data:image/png;base64,${b64}` })
     } catch (primaryErr) {
       console.warn('gpt-image-1 failed, falling back to dall-e-3:', (primaryErr as Error).message)
+      const first = (primaryErr as Error).message
+      try {
       const r = await openai.images.generate({
         model: 'dall-e-3',
         prompt,
@@ -62,9 +66,13 @@ export async function POST(request: Request) {
       const b64 = r.data?.[0]?.b64_json
       if (!b64) throw new Error('No image returned')
       return Response.json({ imageUrl: `data:image/png;base64,${b64}` })
+      } catch (secondErr) {
+        throw new Error(`gpt-image-1: ${first} | dall-e-3: ${(secondErr as Error).message}`)
+      }
     }
   } catch (error) {
     console.error('Image generation error:', error)
-    return Response.json({ error: 'Generation failed', details: String(error) }, { status: 500 })
+    const msg = (error as Error).message || String(error)
+    return Response.json({ error: msg.slice(0, 400) }, { status: 500 })
   }
 }
