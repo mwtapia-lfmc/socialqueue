@@ -59,7 +59,8 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange,
 
   const handleGenerate = async (override?: string) => {
     const promptText = (override ?? genPrompt).trim()
-    if (!promptText) return
+    // Empty box: read the article and write the prompt from it
+    if (!promptText) { if (article && (article.content || article.title || '').trim()) return fromArticle(); return alert('Write something first, or describe the image.') }
     setBusy('generate')
     try {
       const r = await authedFetch('/api/generate-image', {
@@ -158,18 +159,13 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange,
                 value={genPrompt}
                 onChange={(e) => setGenPrompt(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleGenerate())}
-                placeholder="Describe the image…"
+                placeholder={article ? "Leave blank to make one from your piece, or describe it…" : "Describe the image…"}
                 className="flex-1 p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
               <button type="button" onClick={() => handleGenerate()} disabled={busy !== null} className="sq-btn-primary px-3 py-2 rounded-lg text-sm font-medium">
-                {busy === 'generate' ? <span className="sq-pulse">Creating…</span> : '✨ Generate'}
+                {busy === 'generate' ? <span className="sq-pulse">{genPrompt.trim() ? 'Creating…' : 'Reading your piece…'}</span> : '✨ Generate'}
               </button>
             </div>
-            {article && (
-              <button type="button" onClick={fromArticle} disabled={busy !== null || !(article.content || '').trim()} className="mt-2 w-full px-3 py-2 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">
-                {busy === 'generate' ? <span className="sq-pulse">Reading your piece…</span> : '📖 Make an image from what I wrote'}
-              </button>
-            )}
           </div>
 
           {working && (
