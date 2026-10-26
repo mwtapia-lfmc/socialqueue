@@ -292,8 +292,15 @@ export default function Home() {
     let key = slugTag(name) || 'series'
     const taken = new Set(structure.series.map((x) => x.key))
     for (let n = 2; taken.has(key); n++) key = `${slugTag(name) || 'series'}-${n}`
-    const { data, error } = await supabase.from('series').insert({ user_id: user.id, publication_id: structure.publication.id, key, name, description: null, sort_order: structure.series.length }).select().single()
-    if (error) { alert('Could not create the series: ' + error.message); return null }
+    const row = { user_id: user.id, publication_id: structure.publication.id, key, name, description: null, sort_order: structure.series.length }
+    let { data, error } = await supabase.from('series').insert(row).select().single()
+    // A dropped connection ("Load failed" in Safari) gets one quiet retry
+    if (error && /load failed|failed to fetch|network/i.test(error.message)) {
+      await new Promise((r) => setTimeout(r, 1200))
+      const existing = await supabase.from('series').select('*').eq('publication_id', structure.publication.id).eq('key', key).maybeSingle()
+      ;({ data, error } = existing.data ? existing : await supabase.from('series').insert(row).select().single())
+    }
+    if (error) { alert(/load failed|failed to fetch|network/i.test(error.message) ? "Couldn't reach the database. Check your connection and tap Add again." : 'Could not create the series: ' + error.message); return null }
     setStructure({ ...structure, series: [...structure.series, data as Series] })
     return data as Series
   }
