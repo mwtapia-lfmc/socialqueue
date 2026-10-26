@@ -2,11 +2,30 @@ import { supabase } from './supabase'
 
 export type RatioKey = 'original' | 'square' | 'landscape' | 'portrait'
 
-export const RATIOS: Record<RatioKey, { label: string; w: number; h: number; maxWidth: number; hint: string; genSize: string }> = {
-  original: { label: 'Original', w: 0, h: 0, maxWidth: 1600, hint: 'No crop — keeps the whole image', genSize: '1024x1024' },
-  landscape: { label: 'Landscape 16:9', w: 16, h: 9, maxWidth: 1600, hint: 'X, Bluesky, LinkedIn, blog', genSize: '1536x1024' },
-  portrait: { label: 'Portrait 4:5', w: 4, h: 5, maxWidth: 1080, hint: 'Threads feed', genSize: '1024x1536' },
-  square: { label: 'Square 1:1', w: 1, h: 1, maxWidth: 1080, hint: 'Works everywhere', genSize: '1024x1024' },
+export const RATIOS: Record<RatioKey, { label: string; w: number; h: number; maxWidth: number; hint: string; genSize: string; px: string }> = {
+  original: { label: 'Original', w: 0, h: 0, maxWidth: 1600, hint: 'No crop — keeps the whole image', genSize: '1024x1024', px: 'as uploaded' },
+  landscape: { label: 'Landscape 16:9', w: 16, h: 9, maxWidth: 1600, hint: 'X, Bluesky, Substack header', genSize: '1536x1024', px: '1600×900' },
+  portrait: { label: 'Portrait 4:5', w: 4, h: 5, maxWidth: 1080, hint: 'Threads, LinkedIn feed', genSize: '1024x1536', px: '1080×1350' },
+  square: { label: 'Square 1:1', w: 1, h: 1, maxWidth: 1080, hint: 'Safe everywhere', genSize: '1024x1024', px: '1080×1080' },
+}
+
+// What each platform shows best, as of 2026. Sizes are the recommended output pixels.
+export const PLATFORM_SPEC: Record<string, { ratio: RatioKey; size: string; note: string }> = {
+  threads: { ratio: 'portrait', size: '1080×1350', note: '4:5 fills the most feed; 1:1 also shows uncropped' },
+  twitter: { ratio: 'landscape', size: '1600×900', note: '16:9 shows whole in the timeline' },
+  bluesky: { ratio: 'landscape', size: '1600×900', note: '16:9, must be under 1 MB (we compress)' },
+  linkedin: { ratio: 'portrait', size: '1080×1350', note: '4:5 takes the most feed space; 1.91:1 for link cards' },
+  blog: { ratio: 'landscape', size: '1456×816', note: 'Substack header is 1456×816 (16:9)' },
+}
+
+// The ratio that suits the most of the chosen platforms; square when they disagree evenly
+export function bestRatioFor(platforms: string[]): RatioKey {
+  const votes: Partial<Record<RatioKey, number>> = {}
+  for (const p of platforms) { const r = PLATFORM_SPEC[p]?.ratio; if (r) votes[r] = (votes[r] || 0) + 1 }
+  const ranked = (Object.entries(votes) as [RatioKey, number][]).sort((a, b) => b[1] - a[1])
+  if (!ranked.length) return 'square'
+  if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) return 'square'
+  return ranked[0][0]
 }
 
 export const PLATFORM_RATIO: Record<string, RatioKey> = {

@@ -529,7 +529,7 @@ export default function Home() {
                 {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources.filter((x) => !x.region || regions.includes(x.region)) ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} quick={quickText} onQuick={setQuickText}
                   dailyPrompt={<DailyPrompt series={todaySeries} trends={trends?.sources ?? null} onWrite={writeFromPrompt} onPlanDays={() => go('structure')} />} />}
                 {view === 'compose' && (
-                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} seriesRules={seriesRules} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} seriesRules={seriesRules} library={Array.from(new Set(items.flatMap((i) => i.image_urls || [])))} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
                 )}
                 {view === 'structure' && structure && <SeriesDaysEditor series={structure.series} days={seriesDays} onChange={saveSeriesDays} />}
                 {view === 'structure' && structure && <SeriesRulesEditor series={structure.series} rules={seriesRules} onSave={saveSeriesRule} />}

@@ -58,6 +58,7 @@ interface Props {
   trends?: TrendSource[] | null
   myNotes?: Note[]
   seriesRules?: SeriesRules
+  library?: string[]
   onNewSeries?: (name: string) => Promise<{ id: string } | null>
   item: Item | null
   onSaved: (item: Item) => void
@@ -86,7 +87,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], seriesRules = {}, onNewSeries, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], seriesRules = {}, library = [], onNewSeries, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -798,7 +799,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
       <div className="lg:col-span-3 lg:col-start-1">
         <div className="sq-card p-5 md:p-6">
           <h3 className="text-sm font-semibold text-gray-800 mb-3">🎨 Images</h3>
-          <ImageStudio userId={userId} kind={draft.kind} platforms={draft.platforms} images={draft.image_urls || []} onChange={(image_urls) => update({ image_urls })}
+          <ImageStudio userId={userId} kind={draft.kind} platforms={draft.platforms} images={draft.image_urls || []} library={library} onChange={(image_urls) => update({ image_urls })}
             article={{ title: draft.title, hook: draft.hook, content: draft.content, series: structure?.series.find((x) => x.id === draft.series_id)?.name, style: rule.image || null }} />
         </div>
       </div>

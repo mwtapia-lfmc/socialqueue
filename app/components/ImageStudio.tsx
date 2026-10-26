@@ -1,8 +1,9 @@
 'use client'
 
 import { authedFetch } from '../lib/api'
-import { useState } from 'react'
-import { RATIOS, PLATFORM_RATIO, cropToRatio, fileToDataUrl, uploadToStorage, type RatioKey } from '../lib/images'
+import { useEffect, useState } from 'react'
+import { RATIOS, PLATFORM_SPEC, bestRatioFor, cropToRatio, fileToDataUrl, uploadToStorage, type RatioKey } from '../lib/images'
+import { PLATFORM_META, type Platform } from '../lib/text'
 
 interface Props {
   userId: string
@@ -11,11 +12,19 @@ interface Props {
   images: string[]
   onChange: (images: string[]) => void
   article?: { title?: string | null; hook?: string | null; content: string; series?: string | null; style?: string | null }
+  library?: string[]
 }
 
-export default function ImageStudio({ userId, kind, platforms, images, onChange, article }: Props) {
-  const [ratio, setRatio] = useState<RatioKey>('original')
+export default function ImageStudio({ userId, kind, platforms, images, onChange, article, library = [] }: Props) {
+  const targets = kind === 'blog' ? ['blog'] : Object.keys(platforms).filter((p) => platforms[p])
+  const best = bestRatioFor(targets)
+  const [ratio, setRatio] = useState<RatioKey>(best)
+  const [autoRatio, setAutoRatio] = useState(true)
+  // Follow the platforms until the writer picks a format by hand
+  useEffect(() => { if (autoRatio) setRatio(best) }, [best, autoRatio])
+  const pickRatio = (k: RatioKey) => { setRatio(k); setAutoRatio(k === best) }
   const [working, setWorking] = useState<string | null>(null)
+  const previous = library.filter((u) => !images.includes(u) && u !== working)
   const [genPrompt, setGenPrompt] = useState('')
   const [editPrompt, setEditPrompt] = useState('')
   const [busy, setBusy] = useState<null | 'generate' | 'edit' | 'attach'>(null)
@@ -129,7 +138,7 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange,
           <button
             key={k}
             type="button"
-            onClick={() => setRatio(k)}
+            onClick={() => pickRatio(k)}
             title={RATIOS[k].hint}
             className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
               ratio === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300'
@@ -138,8 +147,33 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange,
             {RATIOS[k].label}
           </button>
         ))}
-        <span className="text-xs text-gray-500">{r.hint}</span>
+        <span className="text-xs text-gray-500">{r.hint}{ratio !== 'original' ? ` · ${r.px}` : ''}</span>
       </div>
+      {targets.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-gray-500 mr-1">Best fit</span>
+          {targets.map((p) => {
+            const spec = PLATFORM_SPEC[p]; if (!spec) return null
+            const ok = ratio === spec.ratio || ratio === 'original'
+            const icon = p === 'blog' ? '📰' : PLATFORM_META[p as Platform]?.icon
+            return <span key={p} title={spec.note} className={`px-2 py-0.5 rounded-full border ${ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>{icon} {RATIOS[spec.ratio].label.split(' ').pop()} · {spec.size}</span>
+          })}
+          {ratio !== best && <button type="button" onClick={() => { setRatio(best); setAutoRatio(true) }} className="px-2 py-0.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700">Use best fit ({RATIOS[best].label})</button>}
+          {ratio === best && <span className="text-emerald-700">✓ matches your platforms</span>}
+        </div>
+      )}
+      {previous.length > 0 && (
+        <div>
+          <span className="text-xs font-medium text-gray-600">Previous art <span className="font-normal text-gray-400">· click to reuse</span></span>
+          <div className="mt-1 flex gap-2 overflow-x-auto sq-scroll pb-1">
+            {previous.slice(0, 30).map((u) => (
+              <button key={u} type="button" onClick={() => { setWorking(u); setNote('Loaded from your previous art. Attach it, or amend it with AI.') }} className="shrink-0 h-16 w-16 rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-400 hover:shadow">
+                <img src={u} alt="" className="h-full w-full object-cover" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-3">
