@@ -532,7 +532,7 @@ export default function Home() {
                   <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} seriesRules={seriesRules} library={Array.from(new Set(items.flatMap((i) => i.image_urls || [])))} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
                 )}
                 {view === 'structure' && structure && <SeriesDaysEditor series={structure.series} days={seriesDays} onChange={saveSeriesDays} />}
-                {view === 'structure' && structure && <SeriesRulesEditor series={structure.series} rules={seriesRules} onSave={saveSeriesRule} />}
+                {view === 'structure' && structure && <SeriesRulesEditor series={structure.series} rules={seriesRules} onSave={saveSeriesRule} onRename={(id, patch) => renameStructure('series', id, patch)} />}
                 {view === 'structure' && <Structure state={structureState} data={structure} items={items} onSeed={seedStructure} onRecheck={() => loadStructure(user.id)} onRename={renameStructure} onRenamePublication={renamePublication} onLogo={setLogo} onPlace={placeItem} onEmoji={setEmoji} onNewSeries={createSeries}
                   onNew={(f, ctx) => edit(newStructureItem(f, ctx))} onOpen={edit} onRepurpose={repurposeStructure} onMarkPublished={markPublished} onDelete={remove} onClearPlaceholders={clearPlaceholders} onCadence={setCadence} />}
                 {view === 'batch' && <BatchComposer userId={user.id} connections={connections} onDone={(n) => { loadItems(user.id); go(n ? 'calendar' : 'drafts') }} />}

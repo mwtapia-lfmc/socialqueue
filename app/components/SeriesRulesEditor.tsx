@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { HEADLINE_BEST, HOOK_BEST, IMAGE_BEST, type SeriesRule, type SeriesRules } from '../lib/seriesRules'
 import { seriesEmoji, type Series } from '../lib/structure'
 
-export default function SeriesRulesEditor({ series, rules, onSave }: { series: Series[]; rules: SeriesRules; onSave: (id: string, r: SeriesRule) => Promise<void> }) {
+export default function SeriesRulesEditor({ series, rules, onSave, onRename }: { series: Series[]; rules: SeriesRules; onSave: (id: string, r: SeriesRule) => Promise<void>; onRename: (id: string, patch: { name?: string; description?: string }) => Promise<void> }) {
+  const [title, setTitle] = useState('')
+  const [subject, setSubject] = useState('')
   const [open, setOpen] = useState<string | null>(null)
   const [form, setForm] = useState<SeriesRule>({})
   const [saving, setSaving] = useState(false)
   const [showBest, setShowBest] = useState(false)
-  const start = (id: string) => { setOpen(open === id ? null : id); setForm(rules[id] || {}) }
+  const start = (id: string) => { const sr = series.find((x) => x.id === id); setOpen(open === id ? null : id); setForm(rules[id] || {}); setTitle(sr?.name || ''); setSubject(sr?.description || sr?.name || '') }
   const field = (k: keyof SeriesRule, label: string, help: string, rows = 3) => (
     <label className="block">
       <span className="text-xs font-semibold text-gray-700">{label}</span>
@@ -47,12 +49,25 @@ export default function SeriesRulesEditor({ series, rules, onSave }: { series: S
               </button>
               {open === s.id && (
                 <div className="px-3 pb-3 space-y-3">
-                  {field('titleFormat', 'Title format', 'e.g. REVIEW: ____  (the part before ____ is filled in automatically)', 1)}
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <label className="block"><span className="text-xs font-semibold text-gray-700">Title</span>
+                      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Series name" className="mt-1 w-full h-9 px-3 text-sm font-semibold border border-gray-200 rounded-lg bg-white" /></label>
+                    <label className="block"><span className="text-xs font-semibold text-gray-700">Subject</span>
+                      <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="What this series is about" className="mt-1 w-full h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" /></label>
+                  </div>
+                  {field('titleFormat', 'Post title format', 'REVIEW: ____', 1)}
+                  <p className="-mt-2 text-[11px] text-gray-400">Posts in this series start their title with the part before ____.</p>
                   {field('headline', 'Headline rules for this series', 'e.g. Always name the film and the director. Lead with my verdict.')}
                   {field('hook', 'Hook rules for this series', 'e.g. Use my harshest line. One sentence.')}
                   {field('image', 'Image style', `e.g. 70s film poster, grainy, warm colors.  (Default: ${IMAGE_BEST.slice(0, 80)}…)`, 2)}
                   <div className="flex items-center gap-2">
-                    <button disabled={saving} onClick={async () => { setSaving(true); await onSave(s.id, form); setSaving(false); setOpen(null) }} className="sq-btn-primary text-sm px-4 py-1.5 rounded-lg font-semibold">{saving ? 'Saving…' : 'Save rules'}</button>
+                    <button disabled={saving} onClick={async () => {
+                      setSaving(true)
+                      const patch: { name?: string; description?: string } = {}
+                      if (title.trim() && title.trim() !== s.name) patch.name = title.trim()
+                      if (subject.trim() !== (s.description || '')) patch.description = subject.trim()
+                      if (Object.keys(patch).length) await onRename(s.id, patch)
+                      await onSave(s.id, form); setSaving(false); setOpen(null) }} className="sq-btn-primary text-sm px-4 py-1.5 rounded-lg font-semibold">{saving ? 'Saving…' : 'Save'}</button>
                     <button onClick={() => setOpen(null)} className="text-sm text-gray-500 px-2">Cancel</button>
                   </div>
                 </div>
