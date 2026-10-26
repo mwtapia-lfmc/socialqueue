@@ -71,7 +71,7 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange,
       const data = await r.json()
       if (!r.ok) throw new Error(data.error)
       setWorking(data.imageUrl)
-      setNote(data.mock ? 'Sample image — add OPENAI_API_KEY for real generation' : null)
+      setNote(data.mock ? 'The free generator is down right now; this is a placeholder. Try again in a minute.' : data.free ? 'Made with the free generator (small mark in the corner). An OpenAI key gives cleaner images.' : null)
     } catch (e) {
       alert('Generation failed: ' + (e as Error).message)
     }
