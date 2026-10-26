@@ -43,18 +43,7 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey || apiKey.includes('YOUR_')) {
-      // No OpenAI key: use the free Pollinations generator (real image, small corner mark)
-      try {
-        const [w, h] = size.split('x').map(Number)
-        const u = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1500))}?width=${w}&height=${h}&nologo=true&model=flux&seed=${Math.floor(Math.random() * 1e6)}`
-        const r = await fetch(u, { signal: AbortSignal.timeout(55000) })
-        if (!r.ok || !(r.headers.get('content-type') || '').startsWith('image/')) throw new Error(`generator said ${r.status}`)
-        const b64 = Buffer.from(await r.arrayBuffer()).toString('base64')
-        return Response.json({ imageUrl: `data:${r.headers.get('content-type')};base64,${b64}`, free: true })
-      } catch (e) {
-        console.warn('free generator failed:', (e as Error).message)
-        return Response.json({ imageUrl: placeholderSvg(prompt, size), mock: true })
-      }
+      return Response.json({ imageUrl: placeholderSvg(prompt, size), mock: true })
     }
 
     const openai = new OpenAI({ apiKey })
