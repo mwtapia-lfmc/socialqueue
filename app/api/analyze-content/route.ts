@@ -1,3 +1,4 @@
+import { textOf } from '../../lib/ai'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -40,7 +41,7 @@ Focus on what will get views, likes, and clicks.`
         messages: [{ role: 'user', content: prompt }],
       })
 
-      const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+      const responseText = textOf(message)
       const jsonMatch = responseText.match(/\{[\s\S]*\}/)
 
       if (!jsonMatch) {

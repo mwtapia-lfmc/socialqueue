@@ -1,3 +1,4 @@
+import { textOf } from '../../lib/ai'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -27,7 +28,7 @@ ${previous.length ? `\nDon't repeat these earlier prompts:\n${previous.map((p: s
 
 Return ONLY the prompt text, no quotes or preamble.`
     const msg = await client.messages.create({ model: 'claude-sonnet-5', max_tokens: 200, messages: [{ role: 'user', content: prompt }] })
-    const out = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
+    const out = textOf(msg)
     return Response.json({ prompt: out.replace(/^["“]|["”]$/g, '') })
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 })

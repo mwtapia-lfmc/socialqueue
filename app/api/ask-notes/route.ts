@@ -1,3 +1,4 @@
+import { textOf } from '../../lib/ai'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -18,7 +19,7 @@ ${notes.map((n: any, i: number) => `[N${i}] ${n.notebook ? `(${n.notebook}) ` : 
 
 Return ONLY JSON: {"answer":"...","used":[0,2]}  where "used" lists the note numbers you relied on.`
     const msg = await client.messages.create({ model: 'claude-sonnet-5', max_tokens: 900, messages: [{ role: 'user', content: prompt }] })
-    const text = msg.content[0].type === 'text' ? msg.content[0].text : ''
+    const text = textOf(msg)
     const m = text.match(/\{[\s\S]*\}/)
     const j = m ? JSON.parse(m[0]) : { answer: text, used: [] }
     return Response.json({ answer: String(j.answer || '').replace(/\[N(\d+)\]/g, (_: string, d: string) => `“${notes[+d]?.title ?? 'note'}”`), sources: (j.used || []).map((i: number) => notes[i]?.title).filter(Boolean) })

@@ -1,3 +1,4 @@
+import { textOf } from '../../lib/ai'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -24,7 +25,7 @@ Do two things.
 
 Return ONLY JSON: {"ready":[{"ref":"N3","why":"..."}],"ideas":[{"title":"...","format":"longform","series":null,"why":"...","from":["N1"]}]}`
     const msg = await client.messages.create({ model: 'claude-sonnet-5', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
-    const text = msg.content[0].type === 'text' ? msg.content[0].text : ''
+    const text = textOf(msg)
     const m = text.match(/\{[\s\S]*\}/)
     if (!m) throw new Error('Could not read the suggestions')
     const j = JSON.parse(m[0])

@@ -1,3 +1,4 @@
+import { textOf } from '../../lib/ai'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -26,7 +27,7 @@ Rules:
 - No hashtags unless the author wrote them. No numbering. No emojis the author didn't use.
 - Return ONLY a JSON array of strings, nothing else.`
     const msg = await client.messages.create({ model: 'claude-sonnet-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] })
-    const text = msg.content[0].type === 'text' ? msg.content[0].text : ''
+    const text = textOf(msg)
     const m = text.match(/\[[\s\S]*\]/)
     const posts = m ? (JSON.parse(m[0]) as string[]).map((s) => String(s).trim()).filter(Boolean) : fallbackSplit(raw)
     return Response.json({ posts })

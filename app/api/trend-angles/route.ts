@@ -1,3 +1,4 @@
+import { textOf } from '../../lib/ai'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -16,7 +17,7 @@ ${voiceSamples.length ? `\nHere are a few of their past posts so you can match t
 
 Write 3 distinct, ready-to-post takes (not outlines) — a hot take, a personal angle, and a useful/insightful one. Each under 270 characters, in the creator's voice, no hashtags, no emojis unless their samples use them. Return ONLY a JSON array of 3 strings.`
     const msg = await client.messages.create({ model: 'claude-sonnet-5', max_tokens: 600, messages: [{ role: 'user', content: prompt }] })
-    const text = msg.content[0].type === 'text' ? msg.content[0].text : ''
+    const text = textOf(msg)
     const m = text.match(/\[[\s\S]*\]/)
     return Response.json({ angles: m ? JSON.parse(m[0]) : [text] })
   } catch (e: any) {

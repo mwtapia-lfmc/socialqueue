@@ -1,3 +1,4 @@
+import { textOf } from '../../lib/ai'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -21,7 +22,7 @@ STRICT RULES: Do NOT rewrite, fix or paraphrase any of their sentences. Do not s
 Return ONLY JSON: {"grade":"B+","score":0-100,"summary":"two sentences","strengths":["..."],"notes":[{"area":"Hook|Clarity|Structure|Voice|Specificity|Ending|Other","note":"what's weak and why, plus a question or direction to think about"}]}
 Give 2-3 strengths and 3-6 notes, most important first.`
     const msg = await client.messages.create({ model: 'claude-sonnet-5', max_tokens: 1200, messages: [{ role: 'user', content: prompt }] })
-    const out = msg.content[0].type === 'text' ? msg.content[0].text : ''
+    const out = textOf(msg)
     const m = out.match(/\{[\s\S]*\}/)
     if (!m) throw new Error('Could not read the grade')
     return Response.json(JSON.parse(m[0]))

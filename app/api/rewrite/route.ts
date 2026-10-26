@@ -1,3 +1,4 @@
+import { textOf } from '../../lib/ai'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -24,7 +25,7 @@ Keep the meaning, facts, names, links, and any hashtags exactly. Keep roughly th
 Text:
 ${text}`
     const msg = await client.messages.create({ model: 'claude-sonnet-5', max_tokens: 1200, messages: [{ role: 'user', content: prompt }] })
-    const out = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
+    const out = textOf(msg)
     return Response.json({ text: out.replace(/^["“]|["”]$/g, '') })
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 })
