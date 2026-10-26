@@ -439,7 +439,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
 
           <div>
             {isLong && (
-              <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook — the line someone will screenshot"
+              <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook (optional): your single most quotable line. It becomes the Substack Note for this piece." title="Optional. Your best one-liner from this piece. Used as the Note when you share or repurpose it."
                 className="w-full mb-2 text-[15px] italic bg-orange-50/60 border border-orange-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300" />
             )}
             <div className="flex flex-wrap items-center gap-1 mb-2 relative">
