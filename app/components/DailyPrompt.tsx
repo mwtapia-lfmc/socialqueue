@@ -59,7 +59,7 @@ export default function DailyPrompt({ series, trends, onWrite, onPlanDays }: Pro
       {!res && !busy && !err && !trends && <p className="text-sm text-gray-600">Waiting for trends…</p>}
       {res && (
         <>
-          <p className="text-xl md:text-2xl font-semibold leading-snug">{res.prompt}</p>
+          <p className="text-xl md:text-2xl font-semibold leading-snug text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.25), 0 2px 10px rgba(0,0,0,0.15)' }}>{res.prompt}</p>
           {res.trend && (
             <p className="text-[12px] text-gray-700 mt-2.5">
               From {res.via === 'web' ? 'a web search' : 'trending now'}: {res.trend.url ? <a href={res.trend.url} target="_blank" rel="noopener" className="text-indigo-800 underline hover:text-indigo-900">{res.trend.topic}</a> : res.trend.topic}{res.trend.source && res.via !== 'web' ? ` · ${res.trend.source}` : ''}{res.why ? ` · ${res.why}` : ''}
