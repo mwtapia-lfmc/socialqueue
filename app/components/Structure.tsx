@@ -1,5 +1,7 @@
 'use client'
 
+import { seriesColor } from '../lib/seriesColor'
+
 import { useMemo, useState } from 'react'
 import { formatTime, timeAgo } from '../lib/text'
 import { cadenceOf, EMOJI_CHOICES, FORMAT_LABEL, STAGES, STAGE_STYLE, STRUCTURE_SQL, isPlaceholder, itemTags, seriesEmoji, shortDate, stageOf, tagRegistry, weekDates, weekOfYear, weekYear, weeksInYear, ymd, type Format, type Series, type Stage, type StructureData, type TagInfo } from '../lib/structure'
@@ -257,9 +259,10 @@ export default function Structure(p: Props) {
       const open = effectiveOpen === g.key
       const visible = g.kind === 'series' && innerTag ? g.list.filter((i) => itemTags(i, buckets).includes(innerTag)) : g.list
       const innerTags = g.kind === 'series' ? [...new Set(g.list.flatMap((i) => itemTags(i, buckets)))] : []
+      const sc = g.kind === 'series' ? seriesColor(series.find((x) => x.id === g.ref)) : null
       return (
-        <div key={g.key} className="rounded-xl border border-gray-100 bg-white/60">
-          <div onClick={() => { setOpenKey(open ? null : g.key); setInnerTag('') }} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpenKey(open ? null : g.key)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer">
+        <div key={g.key} className="rounded-xl border-2 overflow-hidden" style={sc ? { background: sc.bg, borderColor: open ? sc.solid : sc.border } : { background: 'rgba(255,255,255,0.6)', borderColor: '#f3f4f6' }}>
+          <div onClick={() => { setOpenKey(open ? null : g.key); setInnerTag('') }} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpenKey(open ? null : g.key)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer" style={sc ? { color: sc.text } : undefined}>
             {g.logo ? <img src={g.logo} alt="" className="h-7 w-7 rounded-lg object-cover border border-orange-100" /> : null}
             <EmojiBtn emoji={g.emoji} onPick={(em) => p.onEmoji(g.kind, g.ref, em)} />
             {renameKey === g.key && g.kind === 'series' ? (
@@ -270,7 +273,7 @@ export default function Structure(p: Props) {
             ) : (
               <span onDoubleClick={g.kind === 'series' ? (e) => { e.stopPropagation(); setRenameKey(g.key) } : undefined} title={g.kind === 'series' ? 'Double-click to rename' : undefined} className="min-w-0 flex-1 text-sm font-semibold truncate">{g.kind === 'tag' ? '#' : ''}{g.name}</span>
             )}
-            <span className={`text-sm font-bold ${g.list.length ? 'text-orange-600' : 'text-gray-300'}`}>{g.list.length}</span>
+            <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={sc ? { background: g.list.length ? sc.solid : '#e5e7eb', color: g.list.length ? 'white' : '#9ca3af' } : { color: g.list.length ? '#ea580c' : '#d1d5db' }}>{g.list.length}</span>
             <span className="text-gray-400 text-xs">{open ? '▾' : '▸'}</span>
           </div>
           {open && (
