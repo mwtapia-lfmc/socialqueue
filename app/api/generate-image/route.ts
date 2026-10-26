@@ -8,6 +8,19 @@ const DALLE_SIZE: Record<GenSize, '1024x1024' | '1792x1024' | '1024x1792'> = {
   '1024x1536': '1024x1792',
 }
 
+let modelCache: { at: number; ids: string[] } | null = null
+async function listImageModels(openai: OpenAI): Promise<string[]> {
+  if (modelCache && Date.now() - modelCache.at < 6 * 3600_000) return modelCache.ids
+  const all: string[] = []
+  for await (const m of openai.models.list()) all.push(m.id)
+  const gpt = all.filter((id) => /^gpt-image/.test(id) && !/mini/.test(id)).sort().reverse()
+  const mini = all.filter((id) => /^gpt-image.*mini/.test(id)).sort().reverse()
+  const dalle = all.filter((id) => /^dall-e-3/.test(id))
+  const ids = [...gpt, ...mini, ...dalle]
+  modelCache = { at: Date.now(), ids }
+  return ids
+}
+
 function placeholderSvg(prompt: string, size: GenSize) {
   const [w, h] = size.split('x').map(Number)
   const text = prompt.replace(/[<>&"]/g, '').slice(0, 60)
@@ -45,29 +58,25 @@ export async function POST(request: Request) {
     }
 
     const openai = new OpenAI({ apiKey })
-    try {
-      const r = await openai.images.generate({ model: 'gpt-image-1', prompt, n: 1, size })
-      const b64 = r.data?.[0]?.b64_json
-      if (!b64) throw new Error('No image returned')
-      return Response.json({ imageUrl: `data:image/png;base64,${b64}` })
-    } catch (primaryErr) {
-      console.warn('gpt-image-1 failed, falling back to dall-e-3:', (primaryErr as Error).message)
-      const first = (primaryErr as Error).message
+    // Ask OpenAI which image models this key can use, newest gpt-image first, then DALL·E
+    const ids = await listImageModels(openai)
+    if (!ids.length) throw new Error('This OpenAI key has no image models available. Check the key\'s project permissions at platform.openai.com.')
+    const errors: string[] = []
+    for (const model of ids) {
       try {
-      const r = await openai.images.generate({
-        model: 'dall-e-3',
-        prompt,
-        n: 1,
-        size: DALLE_SIZE[size],
-        response_format: 'b64_json',
-      })
-      const b64 = r.data?.[0]?.b64_json
-      if (!b64) throw new Error('No image returned')
-      return Response.json({ imageUrl: `data:image/png;base64,${b64}` })
-      } catch (secondErr) {
-        throw new Error(`gpt-image-1: ${first} | dall-e-3: ${(secondErr as Error).message}`)
-      }
+        const isDalle = model.startsWith('dall-e')
+        const r = await openai.images.generate({ model, prompt, n: 1, size: (isDalle ? DALLE_SIZE[size] : size) as any })
+        const d = r.data?.[0]
+        if (d?.b64_json) return Response.json({ imageUrl: `data:image/png;base64,${d.b64_json}`, model })
+        if (d?.url) {
+          const img = await fetch(d.url)
+          const b64 = Buffer.from(await img.arrayBuffer()).toString('base64')
+          return Response.json({ imageUrl: `data:${img.headers.get('content-type') || 'image/png'};base64,${b64}`, model })
+        }
+        errors.push(`${model}: no image returned`)
+      } catch (e) { errors.push(`${model}: ${(e as Error).message}`) }
     }
+    throw new Error(errors.join(' | '))
   } catch (error) {
     console.error('Image generation error:', error)
     const msg = (error as Error).message || String(error)
