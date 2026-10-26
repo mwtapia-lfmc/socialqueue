@@ -1,10 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import { textOf } from '../../lib/ai'
+import { HOOK_BEST } from '../../lib/seriesRules'
 
 export async function POST(request: Request) {
   if (!(await requireUser(request))) return signInFirst()
-  const { title, content } = await request.json()
+  const { title, content, rules } = await request.json()
   if (!content?.trim()) return Response.json({ error: 'Write something first' }, { status: 400 })
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return Response.json({ error: 'AI not configured' }, { status: 500 })
@@ -12,6 +13,9 @@ export async function POST(request: Request) {
     const client = new Anthropic({ apiKey })
     const prompt = `Find the 3 best "hook" lines in this piece: the lines a reader would screenshot, quote or share. Punchy, opinionated, specific, able to stand alone without context.
 
+What makes a good hook:
+${HOOK_BEST}
+${rules ? `This series' own hook rules (these win if they conflict):\n${rules}\n` : ''}
 RULES: Quote the writer's OWN words exactly as written. Don't rewrite, polish or invent. You may trim a sentence to its strongest part, but every word must appear in the text in that order. Each under 280 characters.
 
 ${title ? `Title: ${title}\n` : ''}"""

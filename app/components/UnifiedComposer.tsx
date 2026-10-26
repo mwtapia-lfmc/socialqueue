@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { authedFetch } from '../lib/api'
 import type { TrendSource } from '../api/trends/route'
 import { pickNotes, type Note } from '../lib/notes'
+import { titlePrefix, type SeriesRules } from '../lib/seriesRules'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
@@ -56,6 +57,7 @@ interface Props {
   tagOptions?: TagInfo[]
   trends?: TrendSource[] | null
   myNotes?: Note[]
+  seriesRules?: SeriesRules
   onNewSeries?: (name: string) => Promise<{ id: string } | null>
   item: Item | null
   onSaved: (item: Item) => void
@@ -84,7 +86,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], onNewSeries, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], seriesRules = {}, onNewSeries, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -134,13 +136,19 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     setTitling(true)
     try {
       const ser = structure?.series.find((x) => x.id === draft.series_id)
-      const r = await authedFetch('/api/suggest-titles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: draft.title, hook: draft.hook, content: draft.content, series: ser?.name, tags: draft.tags || [], previous: titleSeen.slice(-12) }) })
+      const r = await authedFetch('/api/suggest-titles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: draft.title, hook: draft.hook, content: draft.content, series: ser?.name, tags: draft.tags || [], previous: titleSeen.slice(-12), format: rule.titleFormat || null, rules: rule.headline || null }) })
       const d = await r.json(); if (!r.ok) throw new Error(d.error)
       setTitles(d.titles); setTitleSeen((x) => [...x, ...d.titles.map((t: any) => t.title)])
     } catch (e) { alert('Title ideas failed: ' + (e as Error).message) }
     setTitling(false)
   }
   const [newSeries, setNewSeries] = useState<string | null>(null)
+  const rule = (draft.series_id && seriesRules[draft.series_id]) || {}
+  const prefix = titlePrefix(rule.titleFormat)
+  // A series with a title format (e.g. "REVIEW: ____") starts an empty longform title with its prefix
+  useEffect(() => {
+    if (isLong && prefix && !(draft.title || '').trim()) update({ title: prefix })
+  }, [draft.series_id, isLong, prefix]) // eslint-disable-line react-hooks/exhaustive-deps
   const makeSeries = async () => {
     const name = (newSeries || '').trim(); if (!name || !onNewSeries) return
     const made = await onNewSeries(name)
@@ -151,7 +159,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   const findHooks = async () => {
     setHooking(true)
     try {
-      const r = await authedFetch('/api/suggest-hook', { method: 'POST', body: JSON.stringify({ title: draft.title, content: draft.content }) })
+      const r = await authedFetch('/api/suggest-hook', { method: 'POST', body: JSON.stringify({ title: draft.title, content: draft.content, rules: rule.hook || null }) })
       const d = await r.json(); if (!r.ok) throw new Error(d.error)
       setHooks(d.hooks)
     } catch (e) { alert('Hook finder failed: ' + (e as Error).message) }
@@ -436,6 +444,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                 />
                 <button type="button" onClick={suggestTitles} disabled={titling} className="shrink-0 mb-1.5 h-8 px-3 rounded-lg text-sm font-medium bg-amber-50 text-amber-800 hover:bg-amber-100">{titling ? <span className="sq-pulse">Thinking…</span> : '✨ Title ideas'}</button>
               </div>
+              {rule.titleFormat && <p className="mt-1 text-[11px] text-gray-400">Series format: <span className="font-medium text-gray-600">{rule.titleFormat}</span></p>}
               {titles && (
                 <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/60 p-2.5 space-y-1.5 sq-fade-in">
                   {titles.map((t, i) => (
@@ -784,7 +793,8 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
       <div className="lg:col-span-3 lg:col-start-1">
         <div className="sq-card p-5 md:p-6">
           <h3 className="text-sm font-semibold text-gray-800 mb-3">🎨 Images</h3>
-          <ImageStudio userId={userId} kind={draft.kind} platforms={draft.platforms} images={draft.image_urls || []} onChange={(image_urls) => update({ image_urls })} />
+          <ImageStudio userId={userId} kind={draft.kind} platforms={draft.platforms} images={draft.image_urls || []} onChange={(image_urls) => update({ image_urls })}
+            article={{ title: draft.title, hook: draft.hook, content: draft.content, series: structure?.series.find((x) => x.id === draft.series_id)?.name, style: rule.image || null }} />
         </div>
       </div>
 

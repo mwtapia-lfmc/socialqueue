@@ -1,10 +1,11 @@
 import { textOf } from '../../lib/ai'
+import { HEADLINE_BEST } from '../../lib/seriesRules'
 import { requireUser, signInFirst } from '../../lib/requireUser'
 import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: Request) {
   if (!(await requireUser(request))) return signInFirst()
-  const { title, hook, content, series, tags = [], previous = [] } = await request.json()
+  const { title, hook, content, series, tags = [], previous = [], format, rules } = await request.json()
   if (!content?.trim() && !title?.trim() && !hook?.trim()) return Response.json({ error: 'Write a little first, or add a hook' }, { status: 400 })
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return Response.json({ error: 'AI not configured' }, { status: 500 })
@@ -19,6 +20,9 @@ ${(content || '').slice(0, 9000)}
 """
 ${previous.length ? `\nAlready suggested, so give different ones:\n${previous.map((p: string) => `- ${p}`).join('\n')}` : ''}
 
+Headline best practices (follow them):
+${HEADLINE_BEST}
+${rules ? `\nThis series' own headline rules (these win if they conflict):\n${rules}\n` : ''}${format ? `\nEVERY title MUST follow this series format exactly: "${format}" (replace the blank with the title; keep the prefix word for word).\n` : ''}
 Give 6 titles, each a different approach: one plain and direct, one a bit funny, one a question, one that makes a claim, one short (under 5 words), one that's intriguing without giving it away. Each under 12 words.
 Return ONLY a JSON array of objects: [{"title":"...","style":"plain"}]`
     // Claude sometimes wraps the list or adds a sentence; accept any of those shapes, and retry once

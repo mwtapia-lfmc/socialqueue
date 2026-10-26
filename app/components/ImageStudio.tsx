@@ -10,9 +10,10 @@ interface Props {
   platforms: Record<string, boolean>
   images: string[]
   onChange: (images: string[]) => void
+  article?: { title?: string | null; hook?: string | null; content: string; series?: string | null; style?: string | null }
 }
 
-export default function ImageStudio({ userId, kind, platforms, images, onChange }: Props) {
+export default function ImageStudio({ userId, kind, platforms, images, onChange, article }: Props) {
   const [ratio, setRatio] = useState<RatioKey>('original')
   const [working, setWorking] = useState<string | null>(null)
   const [genPrompt, setGenPrompt] = useState('')
@@ -44,14 +45,27 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
     setBusy(null)
   }
 
-  const handleGenerate = async () => {
-    if (!genPrompt.trim()) return
+  const fromArticle = async () => {
+    if (!article) return
+    setBusy('generate')
+    try {
+      const r = await authedFetch('/api/image-prompt', { method: 'POST', body: JSON.stringify({ ...article, shape: RATIOS[ratio].label }) })
+      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      setGenPrompt(d.prompt)
+      setBusy(null)
+      await handleGenerate(d.prompt)
+    } catch (e) { alert('Could not read the article: ' + (e as Error).message); setBusy(null) }
+  }
+
+  const handleGenerate = async (override?: string) => {
+    const promptText = (override ?? genPrompt).trim()
+    if (!promptText) return
     setBusy('generate')
     try {
       const r = await authedFetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: genPrompt, size: RATIOS[ratio].genSize }),
+        body: JSON.stringify({ prompt: promptText, size: RATIOS[ratio].genSize }),
       })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error)
@@ -147,10 +161,15 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange 
                 placeholder="Describe the image…"
                 className="flex-1 p-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
-              <button type="button" onClick={handleGenerate} disabled={busy !== null} className="sq-btn-primary px-3 py-2 rounded-lg text-sm font-medium">
+              <button type="button" onClick={() => handleGenerate()} disabled={busy !== null} className="sq-btn-primary px-3 py-2 rounded-lg text-sm font-medium">
                 {busy === 'generate' ? <span className="sq-pulse">Creating…</span> : '✨ Generate'}
               </button>
             </div>
+            {article && (
+              <button type="button" onClick={fromArticle} disabled={busy !== null || !(article.content || '').trim()} className="mt-2 w-full px-3 py-2 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50">
+                {busy === 'generate' ? <span className="sq-pulse">Reading your piece…</span> : '📖 Make an image from what I wrote'}
+              </button>
+            )}
           </div>
 
           {working && (
