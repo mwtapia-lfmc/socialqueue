@@ -10,7 +10,7 @@ type Result = { prompt: string; why?: string; trend: { topic: string; url?: stri
 interface Props {
   series: Series | null
   trends: TrendSource[] | null
-  onWrite: (prompt: string, seriesId: string | null) => void
+  onWrite: (prompt: string, seriesId: string | null, text?: string) => void
   onPlanDays: () => void
 }
 
@@ -22,6 +22,10 @@ export default function DailyPrompt({ series, trends, onWrite, onPlanDays }: Pro
   const [seen, setSeen] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [text, setText] = useState('')
+  useEffect(() => { try { setText(localStorage.getItem('sq:daily-draft') || '') } catch {} }, [])
+  const setDraft = (t: string) => { setText(t); try { t ? localStorage.setItem('sq:daily-draft', t) : localStorage.removeItem('sq:daily-draft') } catch {} }
+  const write = () => { if (!res) return; onWrite(res.prompt, series?.id || null, text); setDraft('') }
   const weekday = WEEKDAYS[new Date().getDay()]
 
   const fetchOne = async (previous: string[]) => {
@@ -43,28 +47,30 @@ export default function DailyPrompt({ series, trends, onWrite, onPlanDays }: Pro
   }, [key, !!trends]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="rounded-2xl p-5 md:p-7 text-white shadow-xl shadow-indigo-500/30 ring-1 ring-white/20" style={{ background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 60%, #db2777 130%)' }}>
+    <div className="rounded-2xl p-5 md:p-7 text-gray-900 shadow-xl shadow-indigo-500/20 ring-1 ring-white/60" style={{ background: 'linear-gradient(135deg, rgba(37,99,235,0.5) 0%, rgba(124,58,237,0.5) 60%, rgba(219,39,119,0.5) 130%)' }}>
       <div className="flex items-center gap-2 flex-wrap mb-2">
-        <span className="text-sm font-bold uppercase tracking-wider text-white/90">💡 Today's prompt</span>
-        <button onClick={onPlanDays} title="Change which series runs on which day" className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/20 text-white hover:bg-white/30">
+        <span className="text-sm font-bold uppercase tracking-wider text-gray-900/80">💡 Today's prompt</span>
+        <button onClick={onPlanDays} title="Change which series runs on which day" className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/60 text-gray-800 hover:bg-white/90">
           {weekday} · {series ? `${seriesEmoji(series)} ${series.name}` : 'Open day'}
         </button>
       </div>
-      {!res && busy && <p className="text-sm text-white/80 sq-pulse">Reading today's trends…</p>}
-      {err && !res && <p className="text-sm text-white">{err} <button onClick={() => fetchOne(seen)} className="underline">Try again</button></p>}
-      {!res && !busy && !err && !trends && <p className="text-sm text-white/70">Waiting for trends…</p>}
+      {!res && busy && <p className="text-sm text-gray-700 sq-pulse">Reading today's trends…</p>}
+      {err && !res && <p className="text-sm text-red-700">{err} <button onClick={() => fetchOne(seen)} className="underline">Try again</button></p>}
+      {!res && !busy && !err && !trends && <p className="text-sm text-gray-600">Waiting for trends…</p>}
       {res && (
         <>
           <p className="text-xl md:text-2xl font-semibold leading-snug">{res.prompt}</p>
           {res.trend && (
-            <p className="text-[12px] text-white/80 mt-2.5">
-              From {res.via === 'web' ? 'a web search' : 'trending now'}: {res.trend.url ? <a href={res.trend.url} target="_blank" rel="noopener" className="text-white underline decoration-white/50 hover:decoration-white">{res.trend.topic}</a> : res.trend.topic}{res.trend.source && res.via !== 'web' ? ` · ${res.trend.source}` : ''}{res.why ? ` · ${res.why}` : ''}
+            <p className="text-[12px] text-gray-700 mt-2.5">
+              From {res.via === 'web' ? 'a web search' : 'trending now'}: {res.trend.url ? <a href={res.trend.url} target="_blank" rel="noopener" className="text-indigo-800 underline hover:text-indigo-900">{res.trend.topic}</a> : res.trend.topic}{res.trend.source && res.via !== 'web' ? ` · ${res.trend.source}` : ''}{res.why ? ` · ${res.why}` : ''}
             </p>
           )}
-          {!res.trend && <p className="text-[12px] text-white/70 mt-2.5">Nothing trending fit your beat today, so this one's just for the series.</p>}
-          <div className="flex items-center gap-2 mt-4">
-            <button onClick={() => onWrite(res.prompt, series?.id || null)} className="text-sm px-5 py-2.5 rounded-xl font-bold bg-white text-indigo-700 hover:bg-indigo-50 shadow whitespace-nowrap">Write this →</button>
-            <button onClick={() => fetchOne(seen)} disabled={busy} className="text-sm px-3 py-2.5 rounded-xl text-white bg-white/15 hover:bg-white/25 whitespace-nowrap">{busy ? <span className="sq-pulse">Thinking…</span> : '🔄 Another'}</button>
+          {!res.trend && <p className="text-[12px] text-gray-600 mt-2.5">Nothing trending fit your beat today, so this one's just for the series.</p>}
+          <textarea value={text} onChange={(e) => setDraft(e.target.value)} rows={3} placeholder="Start typing here…"
+            className="mt-4 w-full p-3 text-[15px] rounded-xl bg-white/80 border border-white/70 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white resize-none" />
+          <div className="flex items-center gap-2 mt-2.5">
+            <button onClick={write} className="sq-btn-primary text-sm px-5 py-2.5 rounded-xl font-bold shadow whitespace-nowrap">{text.trim() ? 'Continue in composer →' : 'Write this →'}</button>
+            <button onClick={() => fetchOne(seen)} disabled={busy} className="text-sm px-3 py-2.5 rounded-xl text-gray-800 bg-white/60 hover:bg-white/90 whitespace-nowrap">{busy ? <span className="sq-pulse">Thinking…</span> : '🔄 Another'}</button>
           </div>
         </>
       )}

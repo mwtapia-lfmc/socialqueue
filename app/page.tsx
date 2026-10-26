@@ -358,7 +358,7 @@ export default function Home() {
     if (error) return alert('Could not save the rules: ' + error.message)
     setUser(data.user)
   }
-  const writeFromPrompt = (prompt: string, seriesId: string | null) => edit({ ...newStructureItem('note', { seriesId }), prompt_hint: prompt } as Item)
+  const writeFromPrompt = (prompt: string, seriesId: string | null, text = '') => edit({ ...newStructureItem('note', { seriesId }), content: text, prompt_hint: prompt } as Item)
   const tagOptions = structure ? tagRegistry(structure.buckets, items.filter((i) => i.publication_id === structure.publication.id)) : []
   const ideas = items.filter((i) => i.status === 'draft' && i.stage === 'idea' && !isPlaceholder(i))
   const drafts = items.filter((i) => i.status === 'draft' && i.stage !== 'idea' && !isPlaceholder(i))
