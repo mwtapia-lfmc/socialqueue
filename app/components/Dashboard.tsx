@@ -45,6 +45,17 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
 
   return (
     <div className="space-y-5 sq-fade-in">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mr-1">Posting as</span>
+          {connections.map((c) => (
+            <button key={c.id} onClick={() => onGo('profiles')} title={`@${c.handle}`} className="relative">
+              {c.avatar ? <img src={c.avatar} alt="" className="h-9 w-9 rounded-full object-cover border-2 border-white shadow" /> : <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />}
+              <span className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full text-[9px] flex items-center justify-center ring-2 ring-white ${PLATFORM_META[c.platform as Platform]?.color}`}>{PLATFORM_META[c.platform as Platform]?.icon}</span>
+            </button>
+          ))}
+          <button onClick={() => onGo('accounts')} className="h-9 w-9 rounded-full border-2 border-dashed border-gray-300 text-gray-400 hover:border-indigo-400 hover:text-indigo-500 text-lg leading-none" title="Connect an account">+</button>
+      </div>
+
       <div className="sq-card p-4 md:p-5">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold text-gray-800">Quick compose</h3>
@@ -61,19 +72,10 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
         <div>
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">{greet}{firstName ? `, ${firstName}` : ''}.</h2>
           <p className="text-sm text-gray-500">{today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-        </div>
-        <div className="flex gap-2">
-          {connections.map((c) => (
-            <button key={c.id} onClick={() => onGo('profiles')} title={`@${c.handle}`} className="relative">
-              {c.avatar ? <img src={c.avatar} alt="" className="h-9 w-9 rounded-full object-cover border-2 border-white shadow" /> : <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />}
-              <span className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full text-[9px] flex items-center justify-center ring-2 ring-white ${PLATFORM_META[c.platform as Platform]?.color}`}>{PLATFORM_META[c.platform as Platform]?.icon}</span>
-            </button>
-          ))}
-          <button onClick={() => onGo('accounts')} className="h-9 w-9 rounded-full border-2 border-dashed border-gray-300 text-gray-400 hover:border-indigo-400 hover:text-indigo-500 text-lg leading-none" title="Connect an account">+</button>
         </div>
       </div>
 
