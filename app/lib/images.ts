@@ -99,3 +99,20 @@ export async function uploadLogo(blob: Blob, userId: string): Promise<string> {
   if (error) throw new Error(error.message)
   return supabase.storage.from('media').getPublicUrl(path).data.publicUrl
 }
+
+// Stamp a series logo in the bottom-right corner (about 11% of the width, light padding)
+export async function stampLogo(image: Blob | string, logoUrl: string): Promise<Blob> {
+  const src = typeof image === 'string' ? image : URL.createObjectURL(image)
+  try {
+    const [img, logo] = await Promise.all([loadImage(src), loadImage(logoUrl)])
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height
+    const ctx = c.getContext('2d')!
+    ctx.drawImage(img, 0, 0)
+    const lw = Math.round(img.width * 0.11); const lh = Math.round(lw * (logo.height / logo.width))
+    const pad = Math.round(img.width * 0.025)
+    ctx.globalAlpha = 0.92
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = Math.round(img.width * 0.01)
+    ctx.drawImage(logo, img.width - lw - pad, img.height - lh - pad, lw, lh)
+    return new Promise((resolve) => c.toBlob((b) => resolve(b!), 'image/jpeg', 0.9))
+  } finally { if (typeof image !== 'string') URL.revokeObjectURL(src) }
+}

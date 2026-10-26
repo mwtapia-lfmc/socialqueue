@@ -2,7 +2,7 @@
 
 import { authedFetch } from '../lib/api'
 import { useEffect, useState } from 'react'
-import { RATIOS, PLATFORM_SPEC, bestRatioFor, cropToRatio, fileToDataUrl, uploadToStorage, type RatioKey } from '../lib/images'
+import { RATIOS, PLATFORM_SPEC, bestRatioFor, cropToRatio, fileToDataUrl, uploadToStorage, stampLogo, type RatioKey } from '../lib/images'
 import { PLATFORM_META, type Platform } from '../lib/text'
 
 interface Props {
@@ -13,9 +13,12 @@ interface Props {
   onChange: (images: string[]) => void
   article?: { title?: string | null; hook?: string | null; content: string; series?: string | null; style?: string | null }
   library?: string[]
+  logo?: string | null
+  logoLabel?: string
 }
 
-export default function ImageStudio({ userId, kind, platforms, images, onChange, article, library = [] }: Props) {
+export default function ImageStudio({ userId, kind, platforms, images, onChange, article, library = [], logo = null, logoLabel = 'series' }: Props) {
+  const [stamp, setStamp] = useState(true)
   const targets = kind === 'blog' ? ['blog'] : Object.keys(platforms).filter((p) => platforms[p])
   const best = bestRatioFor(targets)
   const [ratio, setRatio] = useState<RatioKey>(best)
@@ -112,7 +115,8 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange,
     if (!working) return
     setBusy('attach')
     try {
-      const blob = await cropToRatio(working, ratio)
+      let blob = await cropToRatio(working, ratio)
+      if (logo && stamp) { try { blob = await stampLogo(blob, logo) } catch (e) { console.warn('logo stamp failed', e) } }
       const url = await uploadToStorage(blob, userId)
       onChange([...images, url])
       setWorking(null)
@@ -237,6 +241,13 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange,
               </span>
             )}
           </div>
+          {working && logo && (
+            <label className="flex items-center gap-2 mt-2 text-xs text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={stamp} onChange={(e) => setStamp(e.target.checked)} />
+              <img src={logo} alt="" className="h-5 w-5 rounded object-cover border border-gray-200" />
+              Stamp the {logoLabel} logo in the corner
+            </label>
+          )}
           {working && (
             <div className="flex gap-2 mt-2">
               <button type="button" onClick={handleAttach} disabled={busy !== null} className="sq-btn-primary flex-1 py-2 rounded-lg text-sm font-medium">

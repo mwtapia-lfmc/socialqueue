@@ -5,7 +5,7 @@ import { HEADLINE_BEST, HOOK_BEST, IMAGE_BEST, type SeriesRule, type SeriesRules
 import { EMOJI_CHOICES, seriesEmoji, type Series } from '../lib/structure'
 import { seriesColor } from '../lib/seriesColor'
 
-export default function SeriesRulesEditor({ series, rules, onSave, onRename, onEmoji }: { series: Series[]; rules: SeriesRules; onSave: (id: string, r: SeriesRule) => Promise<void>; onRename: (id: string, patch: { name?: string; description?: string }) => Promise<void>; onEmoji: (id: string, emoji: string) => Promise<void> }) {
+export default function SeriesRulesEditor({ series, rules, onSave, onRename, onEmoji, onLogo }: { series: Series[]; rules: SeriesRules; onSave: (id: string, r: SeriesRule) => Promise<void>; onRename: (id: string, patch: { name?: string; description?: string }) => Promise<void>; onEmoji: (id: string, emoji: string) => Promise<void>; onLogo: (id: string, file: File | null) => Promise<void> }) {
   const [emojiFor, setEmojiFor] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [subject, setSubject] = useState('')
@@ -68,6 +68,13 @@ export default function SeriesRulesEditor({ series, rules, onSave, onRename, onE
                       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Series name" className="mt-1 w-full h-9 px-3 text-sm font-semibold border border-gray-200 rounded-lg bg-white" /></label>
                     <label className="block"><span className="text-xs font-semibold text-gray-700">Subject</span>
                       <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="What this series is about" className="mt-1 w-full h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white" /></label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-gray-700">Logo</span>
+                    {s.logo_url ? <img src={s.logo_url} alt="" className="h-10 w-10 rounded-lg object-cover border border-gray-200 bg-white" /> : <span className="h-10 w-10 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs">none</span>}
+                    <label className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-indigo-400 cursor-pointer font-medium">{s.logo_url ? 'Replace' : 'Upload'}<input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onLogo(s.id, f); e.target.value = '' }} /></label>
+                    {s.logo_url && <button type="button" onClick={() => onLogo(s.id, null)} className="text-xs text-gray-500 hover:text-red-600">Remove</button>}
+                    <span className="text-[11px] text-gray-400">Stamped in the corner of generated images. PNG with a clear background works best.</span>
                   </div>
                   {field('titleFormat', 'Post title format', 'REVIEW: ____', 1)}
                   <p className="-mt-2 text-[11px] text-gray-400">Posts in this series start their title with the part before ____.</p>
