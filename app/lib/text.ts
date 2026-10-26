@@ -75,6 +75,7 @@ export function markdownToSocial(md: string): string {
 }
 
 export const countChars = (s: string) => Array.from(s).length
+export const countWords = (s: string) => (s.trim().match(/\S+/g) || []).length
 
 export function timeAgo(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)

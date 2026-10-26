@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PLATFORM_META, formatTime, parseYmd, timeAgo, type Platform } from '../lib/text'
+import { countWords, PLATFORM_META, formatTime, parseYmd, timeAgo, type Platform } from '../lib/text'
 import type { Item } from './UnifiedComposer'
 import type { Connection } from './Accounts'
 import { isPlaceholder } from '../lib/structure'
@@ -52,8 +52,8 @@ export default function Dashboard({ user, items, connections, trends, onGo, onEd
         </div>
         <textarea value={quick} onChange={(e) => onQuick(e.target.value)} rows={5} placeholder="What's happening?"
           className="w-full p-3 text-[15px] border border-gray-200 rounded-xl bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none" />
-        <div className="flex items-center gap-2 mt-2">
-          <span className="hidden sm:inline text-xs text-gray-400">{quick.length} chars</span>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className={`w-full sm:w-auto text-xs ${quick.length > 300 ? 'text-red-600 font-semibold' : 'text-gray-400'}`} title={quick.length > 300 ? 'Over 300 characters, the Bluesky limit' : undefined}>{quick.length} chars · {countWords(quick)} words</span>
           <span className="flex-1" />
           <button onClick={() => onGo('batch')} aria-label="Batch" className="text-sm px-2.5 py-2 rounded-lg text-gray-700 hover:bg-gray-100 whitespace-nowrap">⚡<span className="hidden sm:inline"> Batch</span></button>
           <button onClick={() => { if (quick.trim()) { onQuickPost(quick); onQuick('') } else onGo('compose') }} className="text-sm px-2.5 py-2 rounded-lg text-gray-700 hover:bg-gray-100 whitespace-nowrap">Full composer</button>

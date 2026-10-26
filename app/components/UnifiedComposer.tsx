@@ -6,7 +6,7 @@ import { authedFetch } from '../lib/api'
 import type { TrendSource } from '../api/trends/route'
 import { pickNotes, type Note } from '../lib/notes'
 import { titlePrefix, type SeriesRules } from '../lib/seriesRules'
-import { PLATFORM_LIMITS, PLATFORM_META, countChars, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
+import { PLATFORM_LIMITS, PLATFORM_META, countChars, countWords, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
 import PlatformPreviews, { type Identity } from './PlatformPreviews'
@@ -595,7 +595,12 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               </div>
             )}
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
-              <span className="text-gray-400">{countChars(draft.content)} chars</span>
+              {(() => {
+                const n = countChars(draft.content)
+                const lim = type === 'post' && selectedPlatforms.length ? Math.min(...selectedPlatforms.map((p) => PLATFORM_LIMITS[p])) : null
+                const over = lim != null && n > lim
+                return <span className={over ? 'text-red-600 font-semibold' : 'text-gray-400'} title={over ? `Over the ${lim}-character limit for one of your platforms` : undefined}>{n} chars · {countWords(draft.content)} words{over ? ` · ${n - lim} over` : ''}</span>
+              })()}
               <button type="button" onClick={gradeIt} disabled={grading || !draft.content.trim()} className="px-2.5 py-1 rounded-md bg-violet-100 text-violet-800 hover:bg-violet-200 font-medium disabled:opacity-50">{grading ? <span className="sq-pulse">Grading…</span> : '🎓 Grade my draft'}</button>
               {type === 'post' && selectedPlatforms.map((p) => {
                 const limit = PLATFORM_LIMITS[p]
