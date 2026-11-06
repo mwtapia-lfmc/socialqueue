@@ -25,6 +25,7 @@ export function markdownToHtml(md: string): string {
 
   const inline = (s: string) =>
     s
+      .replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img src="$2" alt="$1" />')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*\w])_(.+?)_(?!\w)/g, '$1<em>$2</em>')
       .replace(/\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')

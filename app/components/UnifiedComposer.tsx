@@ -817,8 +817,10 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
           {structure && (
             <button type="button" disabled={!draft.content.trim()} onClick={async () => {
               if (type === 'longform') {
-                const html = `<h1>${(draft.title || '').replace(/</g, '&lt;')}</h1>${markdownToHtml(draft.content)}`
-                try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([`${draft.title || ''}\n\n${draft.content}`], { type: 'text/plain' }) })]) }
+                // Attached images that aren't already placed in the text go right under the title
+                const extra = (draft.image_urls || []).filter((u) => !draft.content.includes(u))
+                const html = `<h1>${(draft.title || '').replace(/</g, '&lt;')}</h1>${extra.map((u) => `<p><img src="${u}" alt="" /></p>`).join('')}${markdownToHtml(draft.content)}`
+                try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([`${draft.title || ''}\n\n${extra.join('\n')}${extra.length ? '\n\n' : ''}${draft.content}`], { type: 'text/plain' }) })]) }
                 catch { await navigator.clipboard.writeText(`${draft.title || ''}\n\n${draft.content}`) }
               } else await navigator.clipboard.writeText(draft.content)
               setCopiedSub(true); setTimeout(() => setCopiedSub(false), 1800)
