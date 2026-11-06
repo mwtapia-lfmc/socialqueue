@@ -799,7 +799,15 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
       <div className="lg:col-span-3 lg:col-start-1">
         <div className="sq-card p-5 md:p-6">
           <h3 className="text-sm font-semibold text-gray-800 mb-3">🎨 Images</h3>
-          <ImageStudio userId={userId} kind={draft.kind} platforms={draft.platforms} images={draft.image_urls || []} library={library} logo={structure?.series.find((x) => x.id === draft.series_id)?.logo_url || null} logoLabel={structure?.series.find((x) => x.id === draft.series_id)?.name || 'series'} onChange={(image_urls) => update({ image_urls })}
+          <ImageStudio userId={userId} kind={draft.kind} platforms={draft.platforms} images={draft.image_urls || []} library={library} logo={structure?.series.find((x) => x.id === draft.series_id)?.logo_url || null} logoLabel={structure?.series.find((x) => x.id === draft.series_id)?.name || 'series'}
+            onInsert={isLong ? (url) => {
+              const ta = textareaRef.current; const c = draft.content
+              const at = ta ? ta.selectionStart : c.length
+              const before = c.slice(0, at).replace(/\n*$/, ''); const after = c.slice(at).replace(/^\n*/, '')
+              const next = `${before}${before ? '\n\n' : ''}![](${url})\n\n${after}`
+              update({ content: next })
+              setTimeout(() => { if (ta) { const pos = before.length + (before ? 2 : 0) + url.length + 5 + 2; ta.focus(); ta.setSelectionRange(pos, pos) } }, 0)
+            } : undefined} onChange={(image_urls) => update({ image_urls })}
             article={{ title: draft.title, hook: draft.hook, content: draft.content, series: structure?.series.find((x) => x.id === draft.series_id)?.name, style: rule.image || null }} />
         </div>
       </div>

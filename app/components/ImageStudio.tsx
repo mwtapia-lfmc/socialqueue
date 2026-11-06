@@ -15,9 +15,10 @@ interface Props {
   library?: string[]
   logo?: string | null
   logoLabel?: string
+  onInsert?: (url: string) => void
 }
 
-export default function ImageStudio({ userId, kind, platforms, images, onChange, article, library = [], logo = null, logoLabel = 'series' }: Props) {
+export default function ImageStudio({ userId, kind, platforms, images, onChange, article, library = [], logo = null, logoLabel = 'series', onInsert }: Props) {
   const [stamp, setStamp] = useState(true)
   const targets = kind === 'blog' ? ['blog'] : Object.keys(platforms).filter((p) => platforms[p])
   const best = bestRatioFor(targets)
@@ -267,8 +268,9 @@ export default function ImageStudio({ userId, kind, platforms, images, onChange,
           <span className="text-xs font-medium text-gray-600">Attached ({images.length})</span>
           <div className="flex gap-2 mt-1 flex-wrap">
             {images.map((src, i) => (
-              <div key={i} className="relative group">
+              <div key={i} className="relative group flex flex-col items-center gap-1">
                 <img src={src} alt="" className="h-20 w-20 object-cover rounded-lg border border-gray-200" />
+                {onInsert && <button type="button" onClick={() => onInsert(src)} title="Drop this image into the text where your cursor is" className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100">↧ Place in text</button>}
                 <button
                   type="button"
                   onClick={() => onChange(images.filter((_, j) => j !== i))}
