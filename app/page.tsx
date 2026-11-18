@@ -53,6 +53,22 @@ export default function Home() {
     if (scratchTimer.current) clearTimeout(scratchTimer.current)
     scratchTimer.current = setTimeout(() => { supabase.auth.updateUser({ data: { stickies: v } }).catch(() => {}) }, 1500)
   }
+  // Per-draft Stickies pages, keyed by item id
+  const [draftNotes, setDraftNotesRaw] = useState<Record<string, string>>({})
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => { try { setDraftNotesRaw(JSON.parse(localStorage.getItem('sq:stickies:drafts') || '{}')) } catch {} }, [])
+  useEffect(() => { const v = user?.user_metadata?.stickies_drafts; if (v && typeof v === 'object') setDraftNotesRaw((cur) => ({ ...v, ...cur })) }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+  const setDraftNote = (id: string, text: string) => {
+    setDraftNotesRaw((cur) => {
+      const next = { ...cur, [id]: text }; if (!text.trim()) delete next[id]
+      // keep the newest 60 so the account record stays small
+      const keys = Object.keys(next); if (keys.length > 60) for (const k of keys.slice(0, keys.length - 60)) delete next[k]
+      try { localStorage.setItem('sq:stickies:drafts', JSON.stringify(next)) } catch {}
+      if (draftTimer.current) clearTimeout(draftTimer.current)
+      draftTimer.current = setTimeout(() => { supabase.auth.updateUser({ data: { stickies_drafts: next } }).catch(() => {}) }, 1500)
+      return next
+    })
+  }
   const [quickText, setQuickTextRaw] = useState('')
   useEffect(() => { try { setQuickTextRaw(localStorage.getItem('sq:quick') || '') } catch {} }, [])
   const setQuickText = (t: string) => { setQuickTextRaw(t); try { t ? localStorage.setItem('sq:quick', t) : localStorage.removeItem('sq:quick') } catch {} }
@@ -504,7 +520,7 @@ export default function Home() {
                 {view === 'home' && <Dashboard user={user} items={items} connections={connections} trends={trends?.sources.filter((x) => !x.region || regions.includes(x.region)) ?? null} onGo={(v) => go(v)} onEdit={edit} onQuickPost={quickPost} quick={quickText} onQuick={setQuickText}
                   dailyPrompt={<DailyPrompt series={todaySeries} trends={trends?.sources ?? null} onWrite={writeFromPrompt} onPlanDays={() => go('structure')} />} />}
                 {view === 'compose' && (
-                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} scratch={scratch} onScratch={setScratch} seriesRules={seriesRules} library={Array.from(new Set(items.flatMap((i) => i.image_urls || [])))} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
+                  <UnifiedComposer key={editing?.id || 'new'} userId={user.id} accounts={accounts} connections={connections} structure={structure} tagOptions={tagOptions} trends={trends?.sources ?? null} myNotes={notes} scratch={scratch} onScratch={setScratch} draftNotes={draftNotes} onDraftNote={setDraftNote} seriesRules={seriesRules} library={Array.from(new Set(items.flatMap((i) => i.image_urls || [])))} onNewSeries={createSeries} item={editing} onSaved={upsertLocal} onScheduled={() => { setEditing(null); loadItems(user.id); go('queue') }} />
                 )}
                 {view === 'structure' && structure && <SeriesDaysEditor series={structure.series} days={seriesDays} onChange={saveSeriesDays} />}
                 {view === 'structure' && structure && <SeriesRulesEditor series={structure.series} rules={seriesRules} onSave={saveSeriesRule} onRename={(id, patch) => renameStructure('series', id, patch)} onEmoji={(id, em) => setEmoji('series', id, em)} onLogo={(id, f) => setLogo('series', id, f)} />}

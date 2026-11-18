@@ -62,6 +62,8 @@ interface Props {
   library?: string[]
   scratch?: string
   onScratch?: (t: string) => void
+  draftNotes?: Record<string, string>
+  onDraftNote?: (id: string, t: string) => void
   onNewSeries?: (name: string) => Promise<{ id: string } | null>
   item: Item | null
   onSaved: (item: Item) => void
@@ -90,7 +92,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], seriesRules = {}, library = [], scratch = '', onScratch = () => {}, onNewSeries, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], seriesRules = {}, library = [], scratch = '', onScratch = () => {}, draftNotes = {}, onDraftNote, onNewSeries, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -152,6 +154,11 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
   useEffect(() => { try { const v = JSON.parse(localStorage.getItem('sq:sticky') || 'null'); if (v) setStickyRaw({ ...STICKY_DEFAULT, ...v }) } catch {} }, [])
   const setSticky = (v: StickyState) => { setStickyRaw(v); try { localStorage.setItem('sq:sticky', JSON.stringify(v)) } catch {} }
   const toggleSticky = () => setSticky({ ...sticky, open: !sticky.open })
+  // A draft's own page: keyed by its id; notes typed before the first save move over once it has one
+  const noteKey = id || 'new'
+  useEffect(() => { if (id && onDraftNote && draftNotes['new']?.trim() && !draftNotes[id]?.trim()) { onDraftNote(id, draftNotes['new']); onDraftNote('new', '') } }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [stickyAnchor, setStickyAnchor] = useState<HTMLDivElement | null>(null)
+  const stickyProps = { text: scratch, onChange: onScratch, draftText: draftNotes[noteKey] || '', onDraftChange: onDraftNote ? (t: string) => onDraftNote(noteKey, t) : undefined, draftLabel: 'This draft', state: sticky, onState: setSticky }
   // Focus mode: the piece alone, full window
   const [focus, setFocus] = useState(false)
   const focusRef = useRef<HTMLTextAreaElement>(null)
@@ -430,7 +437,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
 
   return (
     <div className="grid lg:grid-cols-5 gap-6 sq-fade-in">
-      <Sticky text={scratch} onChange={onScratch} state={sticky} onState={setSticky} mode="floating" />
+      <Sticky {...stickyProps} anchor={stickyAnchor} />
       {focus && (
         <div className="fixed inset-0 z-[70] bg-[#fbfbfd] overflow-y-auto sq-fade-in">
           <div className="sticky top-0 z-10 flex items-center gap-3 px-4 md:px-8 h-12 bg-[#fbfbfd]/90 backdrop-blur border-b border-gray-100 text-xs text-gray-500">
@@ -453,7 +460,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                 style={{ fontFamily: 'Georgia, "Iowan Old Style", "Times New Roman", serif' }} />
             </div>
             {sticky.open && sticky.docked && (
-              <aside className="lg:sticky lg:top-20 self-start"><Sticky text={scratch} onChange={onScratch} state={sticky} onState={setSticky} mode="docked" /></aside>
+              <aside className="lg:sticky lg:top-20 self-start"><div ref={setStickyAnchor} style={{ height: 268 }} /></aside>
             )}
           </div>
         </div>
@@ -767,7 +774,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
       </div>
 
       <div className="lg:col-span-2 lg:col-start-4 lg:row-start-1 lg:row-span-3">
-        {!focus && <div className="mb-4"><Sticky text={scratch} onChange={onScratch} state={sticky} onState={setSticky} mode="docked" /></div>}
+        {!focus && sticky.open && sticky.docked && <div ref={setStickyAnchor} className="mb-4" style={{ height: 268 }} />}
         <div className="sq-card p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-800">{type === 'post' ? 'Live previews' : 'Preview'}</h3>
