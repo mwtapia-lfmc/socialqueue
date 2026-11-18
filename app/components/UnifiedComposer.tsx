@@ -6,6 +6,7 @@ import { authedFetch } from '../lib/api'
 import type { TrendSource } from '../api/trends/route'
 import { pickNotes, type Note } from '../lib/notes'
 import { titlePrefix, type SeriesRules } from '../lib/seriesRules'
+import Sticky, { STICKY_DEFAULT, type StickyState } from './Sticky'
 import { PLATFORM_LIMITS, PLATFORM_META, countChars, countWords, markdownToHtml, markdownToSocial, type Platform } from '../lib/text'
 import { RATIOS, PLATFORM_RATIO } from '../lib/images'
 import ImageStudio from './ImageStudio'
@@ -59,6 +60,8 @@ interface Props {
   myNotes?: Note[]
   seriesRules?: SeriesRules
   library?: string[]
+  scratch?: string
+  onScratch?: (t: string) => void
   onNewSeries?: (name: string) => Promise<{ id: string } | null>
   item: Item | null
   onSaved: (item: Item) => void
@@ -87,7 +90,7 @@ const empty = (connected: Partial<Record<Platform, unknown>> = {}): Omit<Item, '
   schedule_time: null,
 })
 
-export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], seriesRules = {}, library = [], onNewSeries, item, onSaved, onScheduled }: Props) {
+export default function UnifiedComposer({ userId, accounts = {}, connections = [], structure = null, tagOptions = [], trends = null, myNotes = [], seriesRules = {}, library = [], scratch = '', onScratch = () => {}, onNewSeries, item, onSaved, onScheduled }: Props) {
   const [id, setId] = useState<string | null>(item?.id || null)
   const [draft, setDraft] = useState(() => (item ? { ...empty(accounts), ...item } : empty(accounts)))
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
@@ -144,12 +147,11 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     setTitling(false)
   }
   const [newSeries, setNewSeries] = useState<string | null>(null)
-  // Scratch pad: loose notes beside the piece, kept on this device per draft
-  const scratchKey = `sq:scratch:${id || 'new'}`
-  const [scratch, setScratchRaw] = useState('')
-  const [showScratch, setShowScratch] = useState(false)
-  useEffect(() => { try { const v = localStorage.getItem(scratchKey) || ''; setScratchRaw(v); if (v) setShowScratch(true) } catch {} }, [scratchKey])
-  const setScratch = (v: string) => { setScratchRaw(v); try { v ? localStorage.setItem(scratchKey, v) : localStorage.removeItem(scratchKey) } catch {} }
+  // Stickies placement (open / docked / floating position), kept on this device
+  const [sticky, setStickyRaw] = useState<StickyState>(STICKY_DEFAULT)
+  useEffect(() => { try { const v = JSON.parse(localStorage.getItem('sq:sticky') || 'null'); if (v) setStickyRaw({ ...STICKY_DEFAULT, ...v }) } catch {} }, [])
+  const setSticky = (v: StickyState) => { setStickyRaw(v); try { localStorage.setItem('sq:sticky', JSON.stringify(v)) } catch {} }
+  const toggleSticky = () => setSticky({ ...sticky, open: !sticky.open })
   // Focus mode: the piece alone, full window
   const [focus, setFocus] = useState(false)
   const focusRef = useRef<HTMLTextAreaElement>(null)
@@ -428,6 +430,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
 
   return (
     <div className="grid lg:grid-cols-5 gap-6 sq-fade-in">
+      <Sticky text={scratch} onChange={onScratch} state={sticky} onState={setSticky} mode="floating" />
       {focus && (
         <div className="fixed inset-0 z-[70] bg-[#fbfbfd] overflow-y-auto sq-fade-in">
           <div className="sticky top-0 z-10 flex items-center gap-3 px-4 md:px-8 h-12 bg-[#fbfbfd]/90 backdrop-blur border-b border-gray-100 text-xs text-gray-500">
@@ -436,9 +439,9 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
             <span className="flex-1" />
             <span>{countWords(draft.content)} words · {countChars(draft.content)} chars</span>
             <span className={saveState === 'saved' ? 'text-emerald-600' : saveState === 'saving' ? 'text-indigo-600' : saveState === 'error' ? 'text-red-600' : ''}>{saveState === 'saved' ? '● saved' : saveState === 'saving' ? '● saving…' : saveState === 'dirty' ? '○ unsaved' : saveState === 'error' ? '● save failed' : ''}</span>
-            <button type="button" onClick={() => setShowScratch((v) => !v)} className={`px-3 py-1.5 rounded-full border font-medium ${showScratch ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300'}`}>📝 Scratch</button>
+            <button type="button" onClick={toggleSticky} className={`px-3 py-1.5 rounded-full border font-medium ${sticky.open ? 'bg-[#fff064] border-[#e9d43b] text-yellow-900' : 'bg-white border-gray-200 text-gray-700 hover:border-yellow-400'}`}>🟨 Stickies</button>
           </div>
-          <div className={`mx-auto px-5 md:px-8 py-10 md:py-14 ${showScratch ? 'max-w-6xl grid lg:grid-cols-[1fr_300px] gap-10' : 'max-w-3xl'}`}>
+          <div className={`mx-auto px-5 md:px-8 py-10 md:py-14 ${sticky.open && sticky.docked ? 'max-w-6xl grid lg:grid-cols-[1fr_300px] gap-10' : 'max-w-3xl'}`}>
             <div>
               <input value={draft.title || ''} onChange={(e) => update({ title: e.target.value })} placeholder="Title"
                 className="w-full text-3xl md:text-4xl font-extrabold tracking-tight bg-transparent border-0 focus:outline-none placeholder:text-gray-300 mb-3" />
@@ -449,13 +452,8 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
                 className="w-full text-[18px] leading-[1.75] text-gray-900 bg-transparent border-0 focus:outline-none resize-none placeholder:text-gray-300"
                 style={{ fontFamily: 'Georgia, "Iowan Old Style", "Times New Roman", serif' }} />
             </div>
-            {showScratch && (
-              <aside className="lg:sticky lg:top-20 self-start">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800 mb-1.5">📝 Scratch pad</p>
-                <textarea value={scratch} onChange={(e) => setScratch(e.target.value)} placeholder="Notes, quotes, outline…" rows={22}
-                  className="w-full p-3 text-sm bg-amber-50/70 border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-300 resize-y" />
-                <p className="text-[10px] text-gray-400 mt-1">Saved on this device. Never published.</p>
-              </aside>
+            {sticky.open && sticky.docked && (
+              <aside className="lg:sticky lg:top-20 self-start"><Sticky text={scratch} onChange={onScratch} state={sticky} onState={setSticky} mode="docked" /></aside>
             )}
           </div>
         </div>
@@ -479,9 +477,9 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               {(id || draft.content) && (
                 <button type="button" onClick={reset} className="text-indigo-600 hover:underline">+ New</button>
               )}
+              <button type="button" onClick={toggleSticky} title="Your notes pad. Drag its header to stick it anywhere." className={`px-2.5 py-1 rounded-full border text-xs font-medium ${sticky.open ? 'bg-[#fff064] border-[#e9d43b] text-yellow-900' : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-400'}`}>🟨 Stickies{scratch.trim() && !sticky.open ? ' •' : ''}</button>
               {isLong && (
                 <>
-                  <button type="button" onClick={() => setShowScratch((v) => !v)} title="A side pad for loose notes, saved on this device" className={`px-2.5 py-1 rounded-full border text-xs font-medium ${showScratch ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'}`}>📝 Scratch{scratch.trim() ? ' •' : ''}</button>
                   <button type="button" onClick={() => setFocus(true)} title="Just the piece, full window (Esc to leave)" className="px-2.5 py-1 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-700">⛶ Focus</button>
                 </>
               )}
@@ -666,16 +664,6 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
             </div>
           </div>
 
-          {isLong && showScratch && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 sq-fade-in">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold text-amber-900">📝 Scratch pad <span className="font-normal text-amber-700/70">· notes, quotes, outline — never published</span></span>
-                <button type="button" onClick={() => setShowScratch(false)} className="text-xs text-amber-800 hover:underline">Hide</button>
-              </div>
-              <textarea value={scratch} onChange={(e) => setScratch(e.target.value)} rows={5} placeholder="Dump thoughts, links, lines you might use…" className="w-full p-3 text-sm bg-white/80 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 resize-y" />
-            </div>
-          )}
-
           {showEvernote && (
             <div className="sq-fade-in rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
               <div className="flex items-center justify-between mb-2">
@@ -779,6 +767,7 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
       </div>
 
       <div className="lg:col-span-2 lg:col-start-4 lg:row-start-1 lg:row-span-3">
+        {!focus && <div className="mb-4"><Sticky text={scratch} onChange={onScratch} state={sticky} onState={setSticky} mode="docked" /></div>}
         <div className="sq-card p-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-800">{type === 'post' ? 'Live previews' : 'Preview'}</h3>
