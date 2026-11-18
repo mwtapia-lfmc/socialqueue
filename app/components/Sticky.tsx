@@ -60,7 +60,7 @@ export default function Sticky({ text, onChange, state, onState, mode }: Props) 
       <textarea value={text} onChange={(e) => onChange(e.target.value)} placeholder="All your notes live here. Ideas, quotes, to-dos — they stick around across every draft."
         rows={floating ? 12 : 9}
         className="w-full flex-1 p-3 text-[13px] leading-relaxed bg-transparent border-0 focus:outline-none resize-y text-yellow-950 placeholder:text-yellow-800/50"
-        style={{ fontFamily: '"Marker Felt", "Comic Sans MS", "Segoe Print", ui-rounded, system-ui, sans-serif' }} />
+        style={{ fontFamily: 'Arial, Helvetica, sans-serif' }} />
     </div>
   )
 }
