@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface StickyState { open: boolean; docked: boolean; x: number; y: number; tab: 'all' | 'draft' }
 export const STICKY_DEFAULT: StickyState = { open: true, docked: true, x: 0, y: 0, tab: 'all' }
@@ -62,12 +63,15 @@ export default function Sticky({ text, onChange, draftText = '', onDraftChange, 
     place(e.clientX, e.clientY)
   }
 
-  if (!state.open) return null
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!state.open || !mounted) return null
   const docked = state.docked && !!slot
   if (state.docked && !slot) return null // no slot on this screen (e.g. the column isn't rendered)
   const pos = docked ? { left: slot!.left, top: slot!.top, width: slot!.width } : { left: state.x, top: state.y, width: FLOAT_W }
 
-  return (
+  // Portaled to <body> so no ancestor transform or filter can throw off the fixed position
+  return createPortal(
     <div ref={ref}
       className={`fixed z-[90] flex flex-col rounded-sm shadow-[0_10px_30px_-10px_rgba(120,90,0,0.45)] ${dragging ? 'cursor-grabbing select-none' : ''}`}
       style={{ background: 'linear-gradient(180deg, #fff79a 0%, #fff064 100%)', ...pos }}>
@@ -89,6 +93,7 @@ export default function Sticky({ text, onChange, draftText = '', onDraftChange, 
         rows={docked ? 9 : 12}
         className="w-full flex-1 p-3 text-[13px] leading-relaxed bg-transparent border-0 focus:outline-none resize-y text-yellow-950 placeholder:text-yellow-800/50"
         style={{ fontFamily: 'Arial, Helvetica, sans-serif' }} />
-    </div>
+    </div>,
+    document.body
   )
 }

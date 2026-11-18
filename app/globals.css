@@ -98,7 +98,7 @@ body {
 .sq-fade-in { animation: sq-fade 0.35s ease both; }
 @keyframes sq-fade {
   from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; }
 }
 
 .sq-pulse { animation: sq-pulse 1.4s ease-in-out infinite; }
