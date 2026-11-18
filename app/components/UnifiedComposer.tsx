@@ -144,6 +144,22 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
     setTitling(false)
   }
   const [newSeries, setNewSeries] = useState<string | null>(null)
+  // Scratch pad: loose notes beside the piece, kept on this device per draft
+  const scratchKey = `sq:scratch:${id || 'new'}`
+  const [scratch, setScratchRaw] = useState('')
+  const [showScratch, setShowScratch] = useState(false)
+  useEffect(() => { try { const v = localStorage.getItem(scratchKey) || ''; setScratchRaw(v); if (v) setShowScratch(true) } catch {} }, [scratchKey])
+  const setScratch = (v: string) => { setScratchRaw(v); try { v ? localStorage.setItem(scratchKey, v) : localStorage.removeItem(scratchKey) } catch {} }
+  // Focus mode: the piece alone, full window
+  const [focus, setFocus] = useState(false)
+  const focusRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (!focus) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFocus(false) }
+    window.addEventListener('keydown', onKey); document.body.style.overflow = 'hidden'
+    setTimeout(() => focusRef.current?.focus(), 50)
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  }, [focus])
   const rule = (draft.series_id && seriesRules[draft.series_id]) || {}
   const prefix = titlePrefix(rule.titleFormat)
   // A series with a title format (e.g. "REVIEW: ____") starts an empty longform title with its prefix
@@ -412,6 +428,38 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
 
   return (
     <div className="grid lg:grid-cols-5 gap-6 sq-fade-in">
+      {focus && (
+        <div className="fixed inset-0 z-[70] bg-[#fbfbfd] overflow-y-auto sq-fade-in">
+          <div className="sticky top-0 z-10 flex items-center gap-3 px-4 md:px-8 h-12 bg-[#fbfbfd]/90 backdrop-blur border-b border-gray-100 text-xs text-gray-500">
+            <button type="button" onClick={() => setFocus(false)} className="px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:border-gray-400 text-gray-700 font-medium">← Back to composer</button>
+            <span className="hidden sm:inline">Esc to leave</span>
+            <span className="flex-1" />
+            <span>{countWords(draft.content)} words · {countChars(draft.content)} chars</span>
+            <span className={saveState === 'saved' ? 'text-emerald-600' : saveState === 'saving' ? 'text-indigo-600' : saveState === 'error' ? 'text-red-600' : ''}>{saveState === 'saved' ? '● saved' : saveState === 'saving' ? '● saving…' : saveState === 'dirty' ? '○ unsaved' : saveState === 'error' ? '● save failed' : ''}</span>
+            <button type="button" onClick={() => setShowScratch((v) => !v)} className={`px-3 py-1.5 rounded-full border font-medium ${showScratch ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300'}`}>📝 Scratch</button>
+          </div>
+          <div className={`mx-auto px-5 md:px-8 py-10 md:py-14 ${showScratch ? 'max-w-6xl grid lg:grid-cols-[1fr_300px] gap-10' : 'max-w-3xl'}`}>
+            <div>
+              <input value={draft.title || ''} onChange={(e) => update({ title: e.target.value })} placeholder="Title"
+                className="w-full text-3xl md:text-4xl font-extrabold tracking-tight bg-transparent border-0 focus:outline-none placeholder:text-gray-300 mb-3" />
+              <input value={draft.hook || ''} onChange={(e) => update({ hook: e.target.value })} placeholder="Hook (optional): the one line people will quote"
+                className="w-full text-base italic text-gray-600 bg-transparent border-0 border-b border-gray-200 focus:outline-none focus:border-gray-400 pb-2 mb-8 placeholder:text-gray-300" />
+              <textarea ref={focusRef} value={draft.content} onChange={(e) => update({ content: e.target.value })} placeholder="Write."
+                rows={Math.max(18, draft.content.split('\n').length + 4)}
+                className="w-full text-[18px] leading-[1.75] text-gray-900 bg-transparent border-0 focus:outline-none resize-none placeholder:text-gray-300"
+                style={{ fontFamily: 'Georgia, "Iowan Old Style", "Times New Roman", serif' }} />
+            </div>
+            {showScratch && (
+              <aside className="lg:sticky lg:top-20 self-start">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800 mb-1.5">📝 Scratch pad</p>
+                <textarea value={scratch} onChange={(e) => setScratch(e.target.value)} placeholder="Notes, quotes, outline…" rows={22}
+                  className="w-full p-3 text-sm bg-amber-50/70 border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-300 resize-y" />
+                <p className="text-[10px] text-gray-400 mt-1">Saved on this device. Never published.</p>
+              </aside>
+            )}
+          </div>
+        </div>
+      )}
       <div className="lg:col-span-3">
         <div className="sq-card p-5 md:p-6 space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -430,6 +478,12 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               </span>
               {(id || draft.content) && (
                 <button type="button" onClick={reset} className="text-indigo-600 hover:underline">+ New</button>
+              )}
+              {isLong && (
+                <>
+                  <button type="button" onClick={() => setShowScratch((v) => !v)} title="A side pad for loose notes, saved on this device" className={`px-2.5 py-1 rounded-full border text-xs font-medium ${showScratch ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'}`}>📝 Scratch{scratch.trim() ? ' •' : ''}</button>
+                  <button type="button" onClick={() => setFocus(true)} title="Just the piece, full window (Esc to leave)" className="px-2.5 py-1 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:border-indigo-300 hover:text-indigo-700">⛶ Focus</button>
+                </>
               )}
             </div>
           </div>
@@ -611,6 +665,16 @@ export default function UnifiedComposer({ userId, accounts = {}, connections = [
               })}
             </div>
           </div>
+
+          {isLong && showScratch && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 sq-fade-in">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-amber-900">📝 Scratch pad <span className="font-normal text-amber-700/70">· notes, quotes, outline — never published</span></span>
+                <button type="button" onClick={() => setShowScratch(false)} className="text-xs text-amber-800 hover:underline">Hide</button>
+              </div>
+              <textarea value={scratch} onChange={(e) => setScratch(e.target.value)} rows={5} placeholder="Dump thoughts, links, lines you might use…" className="w-full p-3 text-sm bg-white/80 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 resize-y" />
+            </div>
+          )}
 
           {showEvernote && (
             <div className="sq-fade-in rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">

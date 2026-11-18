@@ -8,6 +8,7 @@ import Drafts from './components/Drafts'
 import Brainstorm from './components/Brainstorm'
 import NotesLibrary from './components/NotesLibrary'
 import GlobalSearch from './components/GlobalSearch'
+import Sidebar from './components/Sidebar'
 import DailyPrompt from './components/DailyPrompt'
 import SeriesDaysEditor from './components/SeriesDaysEditor'
 import SeriesRulesEditor from './components/SeriesRulesEditor'
@@ -398,43 +399,7 @@ export default function Home() {
 
       <div className="md:flex">
         {/* Desktop sidebar */}
-        {user && (
-          <aside className={`hidden md:flex flex-col sticky top-0 h-screen shrink-0 border-r border-white/70 bg-white/55 backdrop-blur-md transition-[width] duration-200 ${collapsed ? 'w-[72px]' : 'w-60'}`}>
-            <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} px-4 h-16`}>
-              <button onClick={() => go('home')} className="font-extrabold tracking-tight text-left" aria-label="Home" title="Home">
-                {collapsed ? <span className="sq-gradient-text text-xl">SQ</span> : <><span className="sq-gradient-text text-xl">SocialQueue</span><span className="block text-[10px] font-medium text-gray-400 -mt-0.5">v{process.env.NEXT_PUBLIC_APP_VERSION}</span></>}
-              </button>
-            </div>
-            <nav className="flex-1 px-3 overflow-y-auto">
-              {tabs.map((t) => {
-                const [icon, ...rest] = t.label.split(' ')
-                const active = view === t.key
-                return (
-                  <div key={t.key}>
-                  {t.group && (collapsed ? <div className="mx-2 my-1.5 border-t border-gray-200" /> : <p className="pt-2.5 pb-0.5 pl-1"><span className="inline-block px-2 py-px rounded-full bg-[#7c3aed]/50 text-[10px] font-semibold uppercase tracking-wider text-white">{t.group}</span></p>)}
-                  <button onClick={() => go(t.key)} title={rest.join(' ')}
-                    className={`sq-tab w-full flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium ${collapsed ? 'justify-center' : ''} ${active ? 'sq-tab-active' : 'text-gray-700 hover:bg-white/80'}`}>
-                    <span className="text-base leading-none w-5 text-center">{icon}</span>
-                    {!collapsed && <span className="flex-1 text-left truncate">{rest.join(' ')}</span>}
-                    {t.count ? <span className={`text-[11px] min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center ${active ? 'bg-white/25' : 'bg-gray-100 text-gray-700'} ${collapsed ? 'absolute translate-x-4 -translate-y-3' : ''}`}>{t.count}</span> : null}
-                  </button>
-                  </div>
-                )
-              })}
-            </nav>
-            <div className="px-3 pb-3 pt-2 border-t border-white/70 space-y-1">
-              <div className={`flex items-center gap-2 px-2 py-1.5 ${collapsed ? 'justify-center' : ''}`}>
-                {user.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" /> : <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />}
-                {!collapsed && <div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate">{user.user_metadata?.full_name || 'You'}</p><p className="text-[11px] text-gray-500 truncate">{user.email}</p></div>}
-              </div>
-              <div className={`flex ${collapsed ? 'flex-col' : ''} gap-1`}>
-                <button onClick={() => go('help')} title="Help & how-to" className={`sq-tool rounded-lg px-3 py-2 text-xs ${view === 'help' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600'}`}>{collapsed ? '?' : '? Help'}</button>
-                <button onClick={signOut} title="Sign out" className={`sq-tool rounded-lg px-3 py-2 text-xs text-gray-600 ${collapsed ? '' : 'flex-1 text-left'}`}>{collapsed ? '⎋' : 'Sign out'}</button>
-                <button onClick={toggleSidebar} title={collapsed ? 'Expand' : 'Collapse'} className="sq-tool rounded-lg px-3 py-2 text-xs text-gray-600">{collapsed ? '»' : '«'}</button>
-              </div>
-            </div>
-          </aside>
-        )}
+        {user && <Sidebar tabs={tabs} view={view} go={go} collapsed={collapsed} onToggle={toggleSidebar} user={user} onSignOut={signOut} version={process.env.NEXT_PUBLIC_APP_VERSION} />}
 
         <div className="flex-1 min-w-0">
           <div className={`mx-auto px-4 py-6 md:py-8 pb-24 md:pb-8 ${user ? 'max-w-[1400px]' : 'max-w-7xl'}`}>
